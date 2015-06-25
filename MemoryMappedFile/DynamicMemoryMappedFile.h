@@ -21,7 +21,7 @@ int ftruncate(int fd, size_t len) {
 #include <iostream>
 #include <string>
 
-#define HEADER_SIZE 8 // 8 byte header
+#define HEADER_SIZE sizeof(short) + sizeof(unsigned int) + 8
 short VERSION = 1;
 char SANITY[] = { 'r','s' };
 
@@ -45,14 +45,14 @@ namespace STORAGE {
 			// Map a small size, update once the actual size is determined from header
 			mapSize = INITIAL_PAGES * PAGE_SIZE;
 
-			fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+			fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 			if (fs == MAP_FAILED) {
 				// Uhoh...
 				// TODO: Add logging...
 				_close(fd);
 				shutdown(FAILURE);
 			}
-
+			
 			if (createInitial) {
 				ftruncate(fd, mapSize);
 				writeHeader();
@@ -76,7 +76,7 @@ namespace STORAGE {
 				memcpy(&mapSize, header + sizeof(SANITY) + sizeof(VERSION), sizeof(mapSize));
 
 				// mmap over the previous region
-				fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+				fs = (char*)mmap(fs, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
 				// Cleanup
 				free(header);
@@ -86,10 +86,10 @@ namespace STORAGE {
 			_close(fd);
 		}
 
-		void shutdown(const int code = SUCCESS) {
+		int shutdown(const int code = SUCCESS) {
 			writeHeader();
 			munmap(fs, mapSize);
-			exit(code);
+			return code;
 		}
 
 		/*
@@ -124,7 +124,7 @@ namespace STORAGE {
 		const char *backingFilename;
 		char *fs;
 		int numPages;
-		int mapSize;  // Gives us 4GB address space.
+		unsigned int mapSize;  // Gives us 4GB address space.
 
 		int getFileDescriptor(const char *fname) {
 			int fd;
@@ -136,19 +136,11 @@ namespace STORAGE {
 			return fd;
 		}
 
-		char *getHeader() {
-			// Header - [8 bit sanity][8 bit version][32 bit size]
-			char *header = (char*)malloc(HEADER_SIZE);
-			memcpy(header, SANITY, sizeof(SANITY)); // Copy 2 chars
-			memcpy(header + sizeof(SANITY), reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
-			memcpy(header + sizeof(SANITY) + sizeof(VERSION), reinterpret_cast<char*>(&mapSize), sizeof(mapSize));
-			return header;
-		}
-
 		void writeHeader() {
-			char *header = getHeader();
-			raw_write(header, HEADER_SIZE, 0, 0 /* Make sure we use the right offset */);
-			free(header);
+			memcpy(fs, SANITY, sizeof(SANITY));
+			memcpy(fs + sizeof(SANITY), reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
+			memcpy(fs + sizeof(SANITY) + sizeof(VERSION), reinterpret_cast<char*>(&mapSize), sizeof(mapSize));
+			msync(fs, HEADER_SIZE, MS_SYNC);
 		}
 
 		char *readHeader() {
@@ -174,11 +166,11 @@ namespace STORAGE {
 			}
 
 			// Increase the size by some size
-			static const int maxSize = (int)pow(2, 8*sizeof(mapSize)-1);
-			mapSize = mapSize+amt>maxSize?maxSize:mapSize+amt;
+			static const unsigned int maxSize = (int)pow(2, 31);
+			mapSize = mapSize + amt;// > maxSize ? maxSize : mapSize + amt;
 			int fd = getFileDescriptor(backingFilename);
 			ftruncate(fd, mapSize);
-			fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+			fs = (char*)mmap(fs, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 			_close(fd);
 			if (fs == MAP_FAILED) {
 				// Uhoh...
