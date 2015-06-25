@@ -48,12 +48,17 @@ namespace STORAGE {
 		/*
 		 * Read raw data from the filesystem.
 		 */
-		char *raw_read(off_t, size_t);
+		char *raw_read(off_t, size_t, off_t = HEADER_SIZE);
+
+		bool isNew() {
+			return isNewFile;
+		}
 
 	private:
 		/*
 		 * Private fields
 		 */
+		bool isNewFile;
 		const char *backingFilename;
 		char *fs;
 		int numPages;

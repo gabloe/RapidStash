@@ -31,15 +31,18 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	}
 
 	if (createInitial) {
+		isNewFile = true;
 		logEvent(EVENT, "Creating initial file structure");
 		ftruncate(fd, mapSize);
 		writeHeader();
-	}
-	else {
+	} else {
+		isNewFile = false;
+		logEvent(EVENT, "Reading file structure");
 		// Read header, perform sanity check, remap.
 		char *header = readHeader();
 		if (!sanityCheck(header)) {
 			// Uhoh...
+			logEvent(ERROR, "Sanity check failed");
 			shutdown(FAILURE);
 		}
 		// Extract version and size.
@@ -48,7 +51,7 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 		// If the version differs than there could be some compatibility issues...
 		if (recordedVersion != VERSION) {
 			// What do?
-			logEvent(ERROR, "Version mismatch!");
+			logEvent(ERROR, "Version mismatch");
 			shutdown(FAILURE);
 		}
 
@@ -73,12 +76,21 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code = SUCCESS) {
 	std::stringstream codeStr;
 	codeStr << code;
 	logEvent(EVENT, "Shutting down with code " + codeStr.str());
+	if (code != SUCCESS) {
+		logEvent(ERROR, "Shutdown failure");
+		exit(code);
+	}
 	writeHeader();
 	munmap(fs, mapSize);
 	return code;
 }
 
 int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, off_t pos) {
+	// We are writing to the file.  It is not new anymore!
+	if (isNewFile) {
+		isNewFile = false;
+	}
+
 	// If we are trying to write beyond the end of the file, we must grow.
 	size_t start = pos + HEADER_SIZE;
 	size_t end = start + len;
@@ -89,13 +101,15 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, of
 	return 0;
 }
 
-char *STORAGE::DynamicMemoryMappedFile::raw_read(off_t pos, size_t len) {
-	if (pos + len > mapSize - 1) {
+char *STORAGE::DynamicMemoryMappedFile::raw_read(off_t pos, size_t len, off_t off) {
+	size_t start = pos + off;
+	size_t end = start + len;
+	if (end > mapSize - 1) {
 		// Crash gently...
 		shutdown(FAILURE);
 	}
 	char *data = (char *)malloc(len);
-	memcpy(data, fs + pos, len);
+	memcpy(data, fs + start, len);
 	return data;
 }
 
@@ -122,7 +136,7 @@ void STORAGE::DynamicMemoryMappedFile::writeHeader() {
 }
 
 char *STORAGE::DynamicMemoryMappedFile::readHeader() {
-	char *header = raw_read(0, HEADER_SIZE);
+	char *header = raw_read(0, HEADER_SIZE, 0);
 	return header;
 }
 
