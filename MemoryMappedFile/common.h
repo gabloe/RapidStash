@@ -7,9 +7,6 @@
 #define SUCCESS 0
 #define FAILURE 1
 
-bool fileExists(const char* fname) {
-	struct stat buffer;
-	return (stat(fname, &buffer) == 0);
-}
+bool fileExists(const char*);
 
 #endif
