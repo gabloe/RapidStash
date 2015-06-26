@@ -79,7 +79,7 @@ namespace STORAGE {
 											FileMeta::SIZE * MAXFILES;
 		unsigned short numFiles;
 		unsigned short firstFree;
-		size_t nextRawSpot;
+		off_t nextRawSpot;
 		FileMeta files[MAXFILES];
 		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {
 			for (int i = 0; i < MAXFILES; ++i) {
@@ -88,7 +88,7 @@ namespace STORAGE {
 		}
 		off_t insert(std::string name, unsigned int size = MINALLOCATION) {
 			unsigned short spot = firstFree;
-			size_t location = nextRawSpot;
+			off_t location = nextRawSpot;
 			nextRawSpot += size;
 			firstFree++;
 			size_t nameSize = name.size();

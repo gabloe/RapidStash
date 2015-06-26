@@ -157,8 +157,8 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t needed = PAGE_SIZE) {
 	}
 
 	// Increase the size by some size
-	static const unsigned int maxSize = (int)pow(2, 31);
-	mapSize = mapSize + amt;// > maxSize ? maxSize : mapSize + amt;
+	static const unsigned int maxSize = (unsigned int)pow(2, 32) - 1;
+	mapSize = mapSize + amt > maxSize ? maxSize : mapSize + amt;
 	int fd = getFileDescriptor(backingFilename);
 	ftruncate(fd, mapSize);
 	fs = (char*)mmap(fs, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
