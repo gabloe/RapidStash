@@ -25,7 +25,6 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (fs == MAP_FAILED) {
 		// Uhoh...
-		// TODO: Add logging...
 		_close(fd);
 		shutdown(FAILURE);
 	}
