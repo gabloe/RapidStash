@@ -119,9 +119,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\Filesystem\TestFilesystem.cpp" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\Filesystem\Filesystem.vcxproj">
       <Project>{0fb3aa1c-3b48-4987-86a4-78f1305ee19f}</Project>
     </ProjectReference>
@@ -131,6 +128,9 @@
     <ProjectReference Include="..\mman-win32\mman.vcxproj">
       <Project>{f118cc2e-9aed-4db0-9bf4-028781d97ad1}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="TestFilesystem.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -86,7 +86,7 @@ namespace STORAGE {
 				memset(&files[i], 0, FileMeta::SIZE);
 			}
 		}
-		size_t insert(std::string name, unsigned int size = MINALLOCATION) {
+		off_t insert(std::string name, unsigned int size = MINALLOCATION) {
 			unsigned short spot = firstFree;
 			size_t location = nextRawSpot;
 			nextRawSpot += size;
