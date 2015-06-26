@@ -12,12 +12,14 @@
  *
 
 Filesystem structure:
-[File Directory] --  Preallocated to allow for a maximum of 2^32 files.
+[File Directory] --  Preallocated to allow for a maximum of 2^16 files.
 	[Num Files]
-	{ File Positions
+	{ Files
 		...
-		[Position]
+		[Name]
+		[Raw Position]
 		...
+	}
 [Files]
 	...
 	{ File
