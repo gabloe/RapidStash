@@ -19,10 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{4846F8C2-B436-4AF0-AA71-4E8D109D010E}</ProjectGuid>
-    <RootNamespace>MemoryMappedFile</RootNamespace>
-    <ProjectName>DynamicMemoryMappedFile</ProjectName>
-    <TargetPlatformVersion>8.1</TargetPlatformVersion>
+    <ProjectGuid>{9FA4ADB7-BBA6-4CD2-896E-59EEC8128204}</ProjectGuid>
+    <RootNamespace>Testing</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -32,7 +30,7 @@
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
@@ -69,14 +67,13 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IntDir>$(Platform)\$(Configuration)\DynamicMemoryMappedFile\</IntDir>
-  </PropertyGroup>
+  <PropertyGroup />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\Filesystem;..\Logging;..\MemoryMappedFile;..\mman-win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -87,7 +84,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\Logging;..\mman-win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\Filesystem;..\Logging;..\MemoryMappedFile;..\mman-win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -114,7 +111,6 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\mman-win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -123,17 +119,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="common.h" />
-    <ClInclude Include="DynamicMemoryMappedFile.h" />
+    <ClCompile Include="..\Filesystem\TestFilesystem.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Filesystem\Filesystem.vcxproj">
+      <Project>{0fb3aa1c-3b48-4987-86a4-78f1305ee19f}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\MemoryMappedFile\MemoryMappedFile.vcxproj">
+      <Project>{4846f8c2-b436-4af0-aa71-4e8d109d010e}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\mman-win32\mman.vcxproj">
       <Project>{f118cc2e-9aed-4db0-9bf4-028781d97ad1}</Project>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="common.cpp" />
-    <ClCompile Include="DynamicMemoryMappedFile.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
