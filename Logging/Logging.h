@@ -29,9 +29,9 @@ enum LogEventType {
 
 static std::string LogEventTypeToString(LogEventType type) {
 	switch (type) {
-	case ERROR: return "ERROR"; break;
-	case WARNING: return "WARNING"; break;
-	case EVENT: return "EVENT"; break;
+	case ERROR: return "ERROR";
+	case WARNING: return "WARNING";
+	case EVENT: return "EVENT";
 	}
 	return "UNKNOWN";
 }
