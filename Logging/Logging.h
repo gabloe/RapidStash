@@ -9,9 +9,15 @@
 #include <chrono>
 #include <string>
 
-#define LOGDEBUGGING // Undefine this if you don't want the log to contain File/Function/Line of caller
+#define LOGGING			// Enable logging
+#define LOGDEBUGGING	// Undefine this if you don't want the log to contain File/Function/Line of caller
+#define SHORTFILENAMES	// Enable short filenames
 
+#ifdef SHORTFILENAMES
 #define FILE (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#else
+#define FILE __FILE__
+#endif
 
 static const char* LOGPATH = "rs.log";
 
@@ -30,6 +36,7 @@ static std::string LogEventTypeToString(LogEventType type) {
 	return "UNKNOWN";
 }
 
+#ifdef LOGGING
 static void logEvent(LogEventType type, std::string msg) {
 	struct tm timeinfo;
 	std::fstream out(LOGPATH, std::fstream::out | std::fstream::app);
@@ -39,8 +46,11 @@ static void logEvent(LogEventType type, std::string msg) {
 	out << std::put_time(&timeinfo, "%F %T") << " : " << LogEventTypeToString(type) << " - " << msg << std::endl;
 	out.close();
 }
+#else
+#define logEvent(type, msg) {}
+#endif
 
-#ifdef LOGDEBUGGING
+#if defined(LOGDEBUGGING) && defined(LOGGING)
 // class to capture the caller and print it.  
 class Reporter
 {

@@ -30,7 +30,8 @@ STORAGE::File *STORAGE::Filesystem::createNewFile(std::string fname) {
 	// Raw write a placeholder byte.  The actual file contents will be written later.
 	file.raw_write(FilePlaceholder, sizeof(FilePlaceholder), f->location);
 
-#ifdef DEBUGGING
+#ifdef LOGDEBUGGING
+	logEvent(EVENT, "Verifying file placeholder");
 	// Some testing to make sure we are writing the correct stuff
 	char *test = file.raw_read(f->location, sizeof(FilePlaceholder));
 	for (int i = 0; i < sizeof(FilePlaceholder); ++i) {
@@ -39,6 +40,8 @@ STORAGE::File *STORAGE::Filesystem::createNewFile(std::string fname) {
 			shutdown(FAILURE);
 		}
 	}
+	logEvent(EVENT, "File placeholder verified");
+
 #endif
 
 	return f;

@@ -16,11 +16,21 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	bool createInitial = false;
 	if (!fileExists(backingFilename)) {
 		createInitial = true;
+		mapSize = INITIAL_PAGES * PAGE_SIZE;
 	}
-	int fd = getFileDescriptor(backingFilename);
+	else {
+		// Read file size from the host filesystem
+		std::ifstream tst(backingFilename,std::ifstream::binary);
+		tst.seekg(0, tst.end);
+		size_t pos = tst.tellg();
+		tst.close();
+		mapSize = pos;
+		std::ostringstream os;
+		os << mapSize;
+		logEvent(EVENT, "Detected map size of " + os.str());
+	}
 
-	// Map a small size, update once the actual size is determined from header
-	mapSize = INITIAL_PAGES * PAGE_SIZE;
+	int fd = getFileDescriptor(backingFilename);
 
 	fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (fs == MAP_FAILED) {
@@ -54,11 +64,20 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 			shutdown(FAILURE);
 		}
 
-		memcpy(&mapSize, header + sizeof(SANITY) + sizeof(VERSION), sizeof(mapSize));
+#ifdef LOGDEBUGGING
+		// Verify size matches recorded size from header.  If mismatched then
+		// potentially we lost data on the last write.
+		size_t msize;
+		memcpy(&msize, header + sizeof(SANITY) + sizeof(VERSION), sizeof(msize));
 
 		// mmap over the previous region
-		fs = (char*)mmap(fs, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
+		if (msize != mapSize) {
+			std::ostringstream os, os2;
+			os << msize;
+			os2 << mapSize;
+			logEvent(EVENT, "File size mismatch, read " + os.str() + ", should be " + os2.str());
+		}
+#endif
 		// Cleanup
 		free(header);
 	}
@@ -105,6 +124,7 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(off_t pos, size_t len, off_t of
 	size_t end = start + len;
 	if (end > mapSize - 1) {
 		// Crash gently...
+		logEvent(ERROR, "Attempted to read beyond the end of the filesystem!");
 		shutdown(FAILURE);
 	}
 	char *data = (char *)malloc(len);
@@ -120,7 +140,9 @@ int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname) {
 	int fd;
 	int err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM | _O_CREAT, _SH_DENYNO, _S_IREAD | _S_IWRITE);
 	if (err != 0) {
-		// Todo: Add Logging
+		std::ostringstream os;
+		os << err;
+		logEvent(ERROR, "Unable to open backing file, aborted with error " + os.str());
 		shutdown(FAILURE);
 	}
 	return fd;
@@ -151,6 +173,7 @@ bool STORAGE::DynamicMemoryMappedFile::sanityCheck(const char * header) {
 void STORAGE::DynamicMemoryMappedFile::grow(size_t needed = PAGE_SIZE) {
 	// Calculate the number of pages needed to grow by
 	int amt = PAGE_SIZE;
+	needed *= GROWTHFACTOR;
 	if (needed > PAGE_SIZE) {
 		int p = (int)ceil((double)needed / (double)PAGE_SIZE);
 		amt = p * PAGE_SIZE;
@@ -159,12 +182,18 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t needed = PAGE_SIZE) {
 	// Increase the size by some size
 	static const unsigned int maxSize = (unsigned int)pow(2, 32) - 1;
 	mapSize = mapSize + amt > maxSize ? maxSize : mapSize + amt;
+#ifdef LOGDEBUGGING
+	std::ostringstream os;
+	os << mapSize;
+	logEvent(EVENT, "Growing filesystem to " + os.str());
+#endif
 	int fd = getFileDescriptor(backingFilename);
 	ftruncate(fd, mapSize);
 	fs = (char*)mmap(fs, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	_close(fd);
 	if (fs == MAP_FAILED) {
 		// Uhoh...
+		logEvent(ERROR, "Could not remap backing file after growing");
 		shutdown(FAILURE);
 	}
 }
