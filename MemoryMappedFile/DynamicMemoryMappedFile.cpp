@@ -14,6 +14,9 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	logEvent(EVENT, "Using backing file '" + std::string(fname, strlen(fname)) + "'");
 	// If the backing file does not exist, we need to create it
 	bool createInitial = false;
+	std::ostringstream bs;
+	bs << sizeof(size_t);
+	logEvent(EVENT, "Size of size_t is " + bs.str());
 	if (!fileExists(backingFilename)) {
 		createInitial = true;
 		mapSize = INITIAL_PAGES * PAGE_SIZE;
@@ -173,7 +176,7 @@ bool STORAGE::DynamicMemoryMappedFile::sanityCheck(const char * header) {
 void STORAGE::DynamicMemoryMappedFile::grow(size_t needed = PAGE_SIZE) {
 	// Calculate the number of pages needed to grow by
 	int amt = PAGE_SIZE;
-	needed *= GROWTHFACTOR;
+	needed = (size_t)ceil((double)needed*OVERAGE_FACTOR);
 	if (needed > PAGE_SIZE) {
 		int p = (int)ceil((double)needed / (double)PAGE_SIZE);
 		amt = p * PAGE_SIZE;

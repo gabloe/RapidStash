@@ -36,7 +36,7 @@ namespace STORAGE {
 	static const unsigned short MAXFILES = std::numeric_limits<unsigned short>::max();
 
 	// Data to initially write to file location.  Used to reclaim files that get created but never written.
-	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd,0xb,0xe,0xe,0xf };
+	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd,0xc,0x0,0xd,0xe };
 
 	struct File {
 		static const unsigned int MAXNAMELEN = 32;
@@ -81,11 +81,7 @@ namespace STORAGE {
 		unsigned short firstFree;
 		off_t nextRawSpot;
 		FileMeta files[MAXFILES];
-		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {
-			for (int i = 0; i < MAXFILES; ++i) {
-				memset(&files[i], 0, FileMeta::SIZE);
-			}
-		}
+		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {}
 		off_t insert(std::string name, unsigned int size = MINALLOCATION) {
 			unsigned short spot = firstFree;
 			off_t location = nextRawSpot;
