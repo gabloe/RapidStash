@@ -68,7 +68,7 @@ namespace STORAGE {
 		/*
 		 *Private methods
 		 */
-		int getFileDescriptor(const char*);
+		int getFileDescriptor(const char*, bool);
 		void writeHeader();
 		char *readHeader();
 		bool sanityCheck(const char*);

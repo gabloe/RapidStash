@@ -14,30 +14,28 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	logEvent(EVENT, "Using backing file '" + std::string(fname, strlen(fname)) + "'");
 	// If the backing file does not exist, we need to create it
 	bool createInitial = false;
-	std::ostringstream bs;
-	bs << sizeof(size_t);
-	logEvent(EVENT, "Size of size_t is " + bs.str());
+
+	int fd;
+
 	if (!fileExists(backingFilename)) {
+		fd = getFileDescriptor(backingFilename, true);
 		createInitial = true;
 		mapSize = INITIAL_PAGES * PAGE_SIZE;
 	}
 	else {
 		// Read file size from the host filesystem
-		std::ifstream tst(backingFilename,std::ifstream::binary);
-		tst.seekg(0, tst.end);
-		size_t pos = tst.tellg();
-		tst.close();
-		mapSize = pos;
+		fd = getFileDescriptor(backingFilename, false);
+		_lseek(fd, 0L, SEEK_END);
+		mapSize = _tell(fd);
+		_lseek(fd, 0L, SEEK_SET);
 		std::ostringstream os;
 		os << mapSize;
 		logEvent(EVENT, "Detected map size of " + os.str());
 	}
 
-	int fd = getFileDescriptor(backingFilename);
-
 	fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (fs == MAP_FAILED) {
-		// Uhoh...
+		logEvent(ERROR, "Could not map backing file");
 		_close(fd);
 		shutdown(FAILURE);
 	}
@@ -139,9 +137,14 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(off_t pos, size_t len, off_t of
  * Private Methods
  */
 
-int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname) {
+int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool create = true) {
 	int fd;
-	int err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM | _O_CREAT, _SH_DENYNO, _S_IREAD | _S_IWRITE);
+	int err;
+	if (create) {
+		err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM | _O_CREAT, _SH_DENYNO, _S_IREAD | _S_IWRITE);
+	} else {
+		err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM, _SH_DENYNO, _S_IREAD | _S_IWRITE);
+	}
 	if (err != 0) {
 		std::ostringstream os;
 		os << err;

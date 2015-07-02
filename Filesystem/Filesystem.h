@@ -5,6 +5,11 @@
 #include "DynamicMemoryMappedFile.h"
 #include "Logging.h"
 #include <limits>
+#include <map>
+#include <queue>
+#include <mutex>
+#include <thread>
+#include <chrono>
 
 /*
  * The filesystem manipulates the raw memory mapped file in order 
@@ -38,38 +43,35 @@ namespace STORAGE {
 	// Data to initially write to file location.  Used to reclaim files that get created but never written.
 	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd,0xc,0x0,0xd,0xe };
 
-	struct File {
-		static const unsigned int MAXNAMELEN = 32;
-		char name[MAXNAMELEN];  // Up to 32 bytes for filenames (256-bit)
-		size_t size;
-		size_t virtualSize;
-		off_t location;
-		char *data;
-		File() : size(0), virtualSize(0), location(0) {}
-		File(char *rawBuffer, off_t loc) : location(loc) {
-			memcpy(name, rawBuffer, MAXNAMELEN);
-			memcpy(&size, rawBuffer + MAXNAMELEN, sizeof(size_t));
-			memcpy(&virtualSize, rawBuffer + MAXNAMELEN + sizeof(size_t), sizeof(size_t));
-			memcpy(data, rawBuffer + MAXNAMELEN + sizeof(size_t) * 2, size);
-		}
-		size_t getRawSize() {
-			return sizeof(size_t) * 2 + MAXNAMELEN + size;
-		}
-		char *getRawBuffer() {
-			char *buffer = (char*)malloc(getRawSize());
-			memcpy(buffer, name, MAXNAMELEN);
-			memcpy(buffer + MAXNAMELEN, reinterpret_cast<char*>(&size), sizeof(size_t));
-			memcpy(buffer + MAXNAMELEN + sizeof(size_t), reinterpret_cast<char*>(&virtualSize), sizeof(size_t));
-			memcpy(buffer + MAXNAMELEN + sizeof(size_t) * 2, data, size);
-			return buffer;
-		}
+	enum Mode {
+		READ,
+		WRITE,
+		BOTH
 	};
 
 	struct FileMeta {
-		static const unsigned int SIZE = File::MAXNAMELEN + 2 * sizeof(size_t);
+		static const unsigned int MAXNAMELEN = 32;
+		static const unsigned int SIZE = MAXNAMELEN + 3 * sizeof(size_t) + sizeof(off_t) + sizeof(bool) + sizeof(unsigned short);
 		size_t nameSize;
-		char name[File::MAXNAMELEN];
-		size_t position;
+		char name[MAXNAMELEN];
+		size_t size;
+		size_t virtualSize;
+		off_t position;
+		bool writeLock;
+		unsigned short numLocks; // The number of threads trying to lock this file for writing.
+		FileMeta() : nameSize(0), size(0), virtualSize(0), position(0), writeLock(false) {}
+		FileMeta(FileMeta &other) {
+			nameSize = other.nameSize;
+			memcpy(name, other.name, nameSize);
+			size = other.size;
+			virtualSize = other.virtualSize;
+			position = other.position;
+		}
+	};
+
+	struct File {
+		unsigned short index;
+		File(unsigned short index_) : index(index_) {}
 	};
 
 	struct FileDirectory {
@@ -81,17 +83,22 @@ namespace STORAGE {
 		unsigned short firstFree;
 		off_t nextRawSpot;
 		FileMeta files[MAXFILES];
-		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {}
-		off_t insert(std::string name, unsigned int size = MINALLOCATION) {
+		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {
+			// Not really necessary, but just for cleanliness
+			memset(files, 0, sizeof(FileMeta) * MAXFILES);
+		}
+		unsigned short insert(std::string name, unsigned int size = MINALLOCATION) {
 			unsigned short spot = firstFree;
 			off_t location = nextRawSpot;
 			nextRawSpot += size;
 			firstFree++;
 			size_t nameSize = name.size();
-			memcpy(&files[spot].nameSize, &nameSize, sizeof(size_t));
-			memcpy(files[spot].name, name.c_str(), name.size());
-			memcpy(&files[spot].position, &location, sizeof(size_t));
-			return location;
+			FileMeta meta;
+			memcpy(&meta.nameSize, &nameSize, sizeof(size_t));
+			memcpy(meta.name, name.c_str(), name.size());
+			memcpy(&meta.position, &location, sizeof(size_t));
+			files[spot] = meta;
+			return spot;
 		}
 	};
 
@@ -99,13 +106,19 @@ namespace STORAGE {
 	public:
 		Filesystem(const char* fname);
 		void shutdown(int code = SUCCESS);
-		File *createNewFile(std::string);
+		File select(std::string);
+		File createNewFile(std::string);
+		void lock(File, Mode);
+		void unlock(File, Mode);
 
 	private:
 		DynamicMemoryMappedFile file;
 		FileDirectory *dir;
 		void writeFileDirectory(FileDirectory *);
 		FileDirectory *readFileDirectory();
+
+		// For quick lookups, map filenames to spot in meta table.
+		std::map<std::string, unsigned short> lookup;
 	};
 }
 
