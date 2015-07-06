@@ -38,16 +38,11 @@ Filesystem structure:
 */
 
 namespace STORAGE {
+	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
 	static const unsigned short MAXFILES = std::numeric_limits<unsigned short>::max();
 
 	// Data to initially write to file location.  Used to reclaim files that get created but never written.
 	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd,0xc,0x0,0xd,0xe };
-
-	enum Mode {
-		READ,
-		WRITE,
-		BOTH
-	};
 
 	struct FileMeta {
 		static const unsigned int MAXNAMELEN = 32;
@@ -57,9 +52,9 @@ namespace STORAGE {
 		size_t size;
 		size_t virtualSize;
 		off_t position;
-		bool writeLock;
+		bool lock;
 		unsigned short numLocks; // The number of threads trying to lock this file for writing.
-		FileMeta() : nameSize(0), size(0), virtualSize(0), position(0), writeLock(false) {}
+		FileMeta() : nameSize(0), size(0), virtualSize(0), position(0), lock(false) {}
 		FileMeta(FileMeta &other) {
 			nameSize = other.nameSize;
 			memcpy(name, other.name, nameSize);
@@ -108,8 +103,25 @@ namespace STORAGE {
 		void shutdown(int code = SUCCESS);
 		File select(std::string);
 		File createNewFile(std::string);
-		void lock(File, Mode);
-		void unlock(File, Mode);
+		void lock(File);
+		void unlock(File);
+
+	protected:
+		// TODO: Need a way to easily iterate over file metadata.
+		class FileIterator {
+			FileIterator(FileIterator &other) {
+			
+			}
+
+			FileIterator(unsigned short pos) {
+
+			}
+
+			FileIterator &operator++() {
+
+			}
+
+		};
 
 	private:
 		DynamicMemoryMappedFile file;

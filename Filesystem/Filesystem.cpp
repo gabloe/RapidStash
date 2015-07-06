@@ -18,6 +18,7 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 
 
 STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
+	logEvent(EVENT, "Creating file: " + fname);
 	size_t nameLen = fname.size();
 	if (nameLen > FileMeta::MAXNAMELEN) {
 		nameLen = FileMeta::MAXNAMELEN;
@@ -53,52 +54,71 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 }
 
 STORAGE::File STORAGE::Filesystem::select(std::string fname) {
+	dirLock.lock();
 	std::map<std::string, unsigned short>::iterator it;
 	// Check if the file exists.
 	if ((it = lookup.find(fname)) != lookup.end()) {
+		logEvent(EVENT, "File " + fname + " exists");
+		dirLock.unlock();
 		return File(lookup[fname]);
 	} else {
 		// File doesn't exist.  Create it.
-		return createNewFile(fname);
+		STORAGE::File file = createNewFile(fname);
+		dirLock.unlock();
+		return file;
 	}
 }
 
-void STORAGE::Filesystem::lock(File file, Mode mode) {
+void STORAGE::Filesystem::lock(File file) {
 	using namespace std::literals;
-	// START CRITICAL REGION
+
+#ifdef LOGDEBUGGING
+	static int count;
+#endif
 
 	// We are locking the file so that we can read and/or write
+	dirLock.lock();  // START CRITICAL REGION
 	FileMeta &meta = dir->files[file.index];
+
 	meta.numLocks++;
-	while (meta.writeLock) {	/* If the file is locked, we have to wait to read or write */
-		std::this_thread::sleep_for(1s);
+	while (meta.lock == true) {	/* If the file is locked, we have to wait to read or write */
+		dirLock.unlock();
+		std::this_thread::sleep_for(100ms);  // Simple busy wait, should probably make this suspend the thread instead
+		// If this continues for a prolonged period of time there could be potential deadlock.
+#ifdef LOGDEBUGGING
+		count++;
+		if (count > DEADLOCKTHRESHHOLD) {
+			logEvent(WARNING, "Potential deadlock detected");
+		}
+#endif
+		dirLock.lock();
 	}
 
-	if (mode == WRITE) {
-		meta.writeLock = true;
-	}
-
+	meta.lock = true;
+	dirLock.unlock();
 	// END CRITICAL REGION
 }
 
-void STORAGE::Filesystem::unlock(File file, Mode mode) {
-	// START CRITICAL REGION
-
+void STORAGE::Filesystem::unlock(File file) {
 	// We are locking the file so that we can read and/or write
+	dirLock.lock();
+
 	FileMeta &meta = dir->files[file.index];
-	if (meta.writeLock) {	/* If the file is locked, decrement the number of locking threads */
+	if (meta.lock) {	/* If the file is locked, decrement the number of locking threads */
 		meta.numLocks--;
 	}
 
-	if (meta.numLocks == 0) {
-		meta.writeLock = false;
-	}
+	// Signal a thread that is busy waiting to get the lock.
+	meta.lock = false;
 
-	// END CRITICAL REGION
+	//dirLock.unlock();
+	dirLock.unlock();
 }
 
 void STORAGE::Filesystem::shutdown(int code) {
-	writeFileDirectory(dir);
+	dirLock.lock();
+	writeFileDirectory(dir); // Make sure that any changes are flushed to disk.
+	dirLock.unlock();
 	file.shutdown(code);
 }
 

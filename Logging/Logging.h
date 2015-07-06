@@ -9,9 +9,10 @@
 #include <chrono>
 #include <string>
 
-#define LOGGING			// Enable logging
-#define LOGDEBUGGING	// Undefine this if you don't want the log to contain File/Function/Line of caller
-#define SHORTFILENAMES	// Enable short filenames
+#define DEADLOCKTHRESHHOLD 5	// The number of wait cycles before we consider a deadlock issue
+#define LOGGING					// Enable logging
+#define LOGDEBUGGING			// Undefine this if you don't want the log to contain File/Function/Line of caller
+#define SHORTFILENAMES			// Enable short filenames
 
 #ifdef SHORTFILENAMES
 #define FILE (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
