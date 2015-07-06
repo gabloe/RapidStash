@@ -114,15 +114,6 @@ namespace STORAGE {
 		void lock(File);
 		void unlock(File);
 
-		// Iterator for file metadata
-		auto begin() {
-			return lookup.begin();
-		}
-
-		auto end() {
-			return lookup.end();
-		}
-
 	private:
 		DynamicMemoryMappedFile file;
 		void writeFileDirectory(FileDirectory *);
