@@ -3,14 +3,20 @@
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	// Set up file directory if the backing file is new.
 	if (file.isNew()) {
+		logEvent(EVENT, "Backing file is new");
 		dir = new FileDirectory();
 		writeFileDirectory(dir);
 	} else {
+		logEvent(EVENT, "Backing file exists, populating lookup table");
 		dir = readFileDirectory();
+		std::ostringstream os;
+		os << dir->numFiles;
+		logEvent(EVENT, "Number of stored files is " + os.str());
 
 		// Populate lookup table
-		for (int i = 0; i < dir->numFiles; ++i) {
+		for (File i = 0; i < dir->numFiles; ++i) {
 			std::string name(dir->files[i].name, dir->files[i].nameSize);
+			logEvent(EVENT, name);
 			lookup[name] = i;
 		}
 	}
@@ -78,7 +84,7 @@ void STORAGE::Filesystem::lock(File file) {
 
 	// We are locking the file so that we can read and/or write
 	dirLock.lock();  // START CRITICAL REGION
-	FileMeta &meta = dir->files[file.index];
+	FileMeta &meta = dir->files[file];
 
 	meta.numLocks++;
 	while (meta.lock == true) {	/* If the file is locked, we have to wait to read or write */
@@ -103,7 +109,7 @@ void STORAGE::Filesystem::unlock(File file) {
 	// We are locking the file so that we can read and/or write
 	dirLock.lock();
 
-	FileMeta &meta = dir->files[file.index];
+	FileMeta &meta = dir->files[file];
 	if (meta.lock) {	/* If the file is locked, decrement the number of locking threads */
 		meta.numLocks--;
 	}

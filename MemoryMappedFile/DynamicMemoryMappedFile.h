@@ -18,6 +18,7 @@ int ftruncate(int, size_t);
 #include "common.h"
 #include <iostream>
 #include <string>
+#include <mutex>
 
 #define OVERAGE_FACTOR 1.15 // Request 15% more space to accommodate for potential growth
 static short VERSION = 1;
@@ -64,6 +65,7 @@ namespace STORAGE {
 		char *fs;
 		int numPages;
 		size_t mapSize;
+		std::mutex growthLock;
 
 		/*
 		 *Private methods

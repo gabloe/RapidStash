@@ -18,12 +18,13 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	int fd;
 
 	if (!fileExists(backingFilename)) {
+		isNewFile = true;
 		fd = getFileDescriptor(backingFilename, true);
 		createInitial = true;
 		mapSize = INITIAL_PAGES * PAGE_SIZE;
-	}
-	else {
+	} else {
 		// Read file size from the host filesystem
+		isNewFile = false;
 		fd = getFileDescriptor(backingFilename, false);
 		_lseek(fd, 0L, SEEK_END);
 		mapSize = _tell(fd);
@@ -41,12 +42,10 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	}
 
 	if (createInitial) {
-		isNewFile = true;
 		logEvent(EVENT, "Creating initial file structure");
 		ftruncate(fd, mapSize);
 		writeHeader();
 	} else {
-		isNewFile = false;
 		logEvent(EVENT, "Reading file structure");
 		// Read header, perform sanity check, remap.
 		char *header = readHeader();
@@ -113,9 +112,14 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, of
 	// If we are trying to write beyond the end of the file, we must grow.
 	size_t start = pos + HEADER_SIZE;
 	size_t end = start + len;
+
+	// Need to ensure that if one thread grows the file, other threads wait
+	growthLock.lock();
 	if (end > mapSize - 1) {
 		grow(end - mapSize - 1);
 	}
+	growthLock.unlock();
+
 	memcpy(fs + start, data, len);
 	return 0;
 }
