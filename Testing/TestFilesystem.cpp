@@ -21,11 +21,13 @@ void foo(STORAGE::Filesystem *f, std::string name) {
 
 int main() {
 	STORAGE::Filesystem f("test.stash");
-	std::thread threads[500];
+
+	// Create 50 threads, concurrently write to 5 files.
+	std::thread threads[50];
 	srand(time(NULL));
-	for (int i = 0; i < 500; ++i) {
+	for (int i = 0; i < 50; ++i) {
 		std::ostringstream os;
-		os << "MyFile" << rand() % 10;
+		os << "MyFile" << rand() % 5;
 		threads[i] = std::thread(foo, &f, os.str());
 	}
 	
