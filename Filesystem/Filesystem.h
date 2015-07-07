@@ -48,7 +48,7 @@ namespace STORAGE {
 	typedef unsigned short File;
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
 
-	static const unsigned short MAXFILES = std::numeric_limits<unsigned short>::max();
+	static const unsigned short MAXFILES = 2 << 10; // std::numeric_limits<unsigned short>::max();
 
 	// Data to initially write to file location.  Used to reclaim files that get created but never written.
 	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd,0xc,0x0,0xd,0xe };
