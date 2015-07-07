@@ -4,13 +4,14 @@
 
 #include "DynamicMemoryMappedFile.h"
 #include "Logging.h"
+
 #include <limits>
 #include <map>
 #include <queue>
 #include <mutex>
 #include <thread>
 #include <chrono>
-
+#include <condition_variable>
 /*
  * The filesystem manipulates the raw memory mapped file in order 
  * to manage the contents for the user.
@@ -38,6 +39,9 @@ Filesystem structure:
 */
 
 namespace STORAGE {
+	class Filesystem;
+	class Writer;
+
 	// A file is just am index into an internal array.
 	typedef unsigned short File;
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
@@ -48,49 +52,50 @@ namespace STORAGE {
 
 	struct FileMeta {
 		static const unsigned int MAXNAMELEN = 32;
-		static const unsigned int SIZE = MAXNAMELEN + 3 * sizeof(size_t) + sizeof(off_t) + sizeof(bool) + sizeof(unsigned short);
+		static const unsigned int SIZE = MAXNAMELEN + 4 * sizeof(size_t);
+		
 		size_t nameSize;			// The number of characters for the file name
 		char name[MAXNAMELEN];		// The file name
 		size_t size;				// The number of bytes actually used for the file
 		size_t virtualSize;			// The total number of bytes allocated for the file
-		off_t position;				// The position of the file on disk
+		size_t position;			// The position of the file on disk
 		bool lock;					// The exclusive lock status of the file
-		unsigned short numLocks;	// The number of threads trying to lock this file
+		std::condition_variable cond;
 
 		FileMeta() : nameSize(0), size(0), virtualSize(0), position(0), lock(false) {}
-		FileMeta(FileMeta &other) {
+		
+		FileMeta(FileMeta& other) : lock(false) {
 			nameSize = other.nameSize;
 			memcpy(name, other.name, nameSize);
 			size = other.size;
 			virtualSize = other.virtualSize;
 			position = other.position;
 		}
+		
 	};
 
 	struct FileDirectory {
 		// Data
 		File numFiles;
 		File firstFree;
-		off_t nextRawSpot;
+		size_t nextRawSpot;
 		FileMeta files[MAXFILES];
 
 		// Methods
-		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {
-			// Not really necessary, but just for cleanliness
-			memset(files, 0, sizeof(FileMeta) * MAXFILES);
-		}
-		File insert(std::string name, unsigned int size = MINALLOCATION) {
+		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {}
+		File insert(std::string name, size_t size = MINALLOCATION) {
 			numFiles++;
 			File spot = firstFree;
-			off_t location = nextRawSpot;
+			size_t location = nextRawSpot;
 			nextRawSpot += size;
 			firstFree++;
 			size_t nameSize = name.size();
-			FileMeta meta;
-			memcpy(&meta.nameSize, &nameSize, sizeof(size_t));
-			memcpy(meta.name, name.c_str(), name.size());
-			memcpy(&meta.position, &location, sizeof(size_t));
-			files[spot] = meta;
+			files[spot].lock = false;
+			files[spot].size = 0;
+			files[spot].virtualSize = size;
+			memcpy(&files[spot].nameSize, &nameSize, sizeof(size_t));
+			memcpy(files[spot].name, name.c_str(), name.size());
+			memcpy(&files[spot].position, &location, sizeof(size_t));
 			return spot;
 		}
 
@@ -98,21 +103,24 @@ namespace STORAGE {
 		 *  Statics
 		 */
 		static const size_t MINALLOCATION = 256;  // Pre-Allocate 256 bytes per file.
-		static const unsigned int SIZE = 2 * sizeof(File) +
-			sizeof(off_t) +
+		static const unsigned int SIZE = 2 * sizeof(File) + sizeof(size_t) +
 			(FileMeta::SIZE * MAXFILES);
 	};
 
 	class Filesystem {
-		class FileIterator; // Forward declaration.
-
 	public:
+		friend class Writer;
+		friend class Reader;
+
 		Filesystem(const char* fname);
 		void shutdown(int code = SUCCESS);
 		File select(std::string);
 		File createNewFile(std::string);
 		void lock(File);
 		void unlock(File);
+		size_t getSize(File);
+		Writer getWriter(File);
+		Reader getReader(File);
 
 	private:
 		DynamicMemoryMappedFile file;
@@ -122,6 +130,50 @@ namespace STORAGE {
 
 		// For quick lookups, map filenames to spot in meta table.
 		std::map<std::string, unsigned short> lookup;
+	};
+
+	/*
+	 *  File reader/writer classes
+	 */
+
+	enum StartLocation {
+		BEGIN,
+		END
+	};
+
+	class Reader {
+	public:
+		Reader(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
+		void seek(off_t, StartLocation);
+		char *read(size_t);
+		char *read();
+		size_t tell();
+
+	private:
+		Filesystem *fs;
+		File file;
+		size_t position;
+		char *readUnsafe(size_t);
+	};
+
+
+	class Writer {
+	public:
+		Writer(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
+		void seek(off_t, StartLocation);
+		void write(const char *, size_t);
+		size_t tell();
+
+	private:
+		Filesystem *fs;
+		File file;
+		size_t position;
+	};
+
+	class SeekOutOfBoundsException : public std::exception {
+		virtual const char* what() const throw(){
+			return "Attempted to seek beyond the end of the file or before the beginning of the file.";
+		}
 	};
 }
 

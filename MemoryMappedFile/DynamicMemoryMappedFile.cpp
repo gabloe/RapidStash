@@ -48,7 +48,7 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	} else {
 		logEvent(EVENT, "Reading file structure");
 		// Read header, perform sanity check, remap.
-		char *header = readHeader();
+		const char *header = readHeader();
 		if (!sanityCheck(header)) {
 			// Uhoh...
 			logEvent(ERROR, "Sanity check failed");
@@ -79,7 +79,7 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 		}
 #endif
 		// Cleanup
-		free(header);
+		free((void*)header);
 	}
 
 	// We don't actually need the file descriptor any longer

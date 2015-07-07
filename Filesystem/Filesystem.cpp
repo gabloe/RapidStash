@@ -2,6 +2,8 @@
 
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	// Set up file directory if the backing file is new.
+	std::lock_guard<std::mutex> lk(dirLock);
+
 	if (file.isNew()) {
 		logEvent(EVENT, "Backing file is new");
 		dir = new FileDirectory();
@@ -16,7 +18,6 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 		// Populate lookup table
 		for (File i = 0; i < dir->numFiles; ++i) {
 			std::string name(dir->files[i].name, dir->files[i].nameSize);
-			logEvent(EVENT, name);
 			lookup[name] = i;
 		}
 	}
@@ -31,7 +32,10 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 	}
 
 	// Construct the file object.
-	unsigned short index = dir->insert(fname);
+	File index = dir->insert(fname);
+	std::ostringstream os;
+	os << index;
+	logEvent(EVENT, "New file at position " + os.str());
 
 	// Get the position of the new file
 	off_t pos = dir->files[index].position;
@@ -53,91 +57,215 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 		}
 	}
 	logEvent(EVENT, "File placeholder verified");
-
 #endif
 
-	return File(index);
+	return index;
 }
 
 STORAGE::File STORAGE::Filesystem::select(std::string fname) {
-	dirLock.lock();
-	std::map<std::string, unsigned short>::iterator it;
+	std::lock_guard<std::mutex> lk(dirLock);
+
+	std::map<std::string, File>::iterator it;
+	STORAGE::File file;
+
 	// Check if the file exists.
 	if ((it = lookup.find(fname)) != lookup.end()) {
 		logEvent(EVENT, "File " + fname + " exists");
-		dirLock.unlock();
-		return File(lookup[fname]);
+		file = lookup[fname];
 	} else {
 		// File doesn't exist.  Create it.
-		STORAGE::File file = createNewFile(fname);
-		dirLock.unlock();
-		return file;
+		file = createNewFile(fname);
 	}
+
+	return file;
 }
 
 void STORAGE::Filesystem::lock(File file) {
-	using namespace std::literals;
-
-#ifdef LOGDEBUGGING
-	static int count;
-#endif
-
 	// We are locking the file so that we can read and/or write
-	dirLock.lock();  // START CRITICAL REGION
+	std::unique_lock<std::mutex> lk(dirLock);
 	FileMeta &meta = dir->files[file];
-
-	meta.numLocks++;
-	while (meta.lock == true) {	/* If the file is locked, we have to wait to read or write */
-		dirLock.unlock();
-		std::this_thread::sleep_for(100ms);  // Simple busy wait, should probably make this suspend the thread instead
-		// If this continues for a prolonged period of time there could be potential deadlock.
-#ifdef LOGDEBUGGING
-		count++;
-		if (count > DEADLOCKTHRESHHOLD) {
-			logEvent(WARNING, "Potential deadlock detected");
-		}
-#endif
-		dirLock.lock();
-	}
-
+	meta.cond.wait(lk, [&meta] {return !meta.lock; });
 	meta.lock = true;
-	dirLock.unlock();
-	// END CRITICAL REGION
+	lk.unlock();
+	meta.cond.notify_one();
 }
 
 void STORAGE::Filesystem::unlock(File file) {
-	// We are locking the file so that we can read and/or write
-	dirLock.lock();
-
+	std::unique_lock<std::mutex> lk(dirLock);
 	FileMeta &meta = dir->files[file];
-	if (meta.lock) {	/* If the file is locked, decrement the number of locking threads */
-		meta.numLocks--;
-	}
-
+	meta.cond.wait(lk, [&meta] {return meta.lock; });
 	// Signal a thread that is busy waiting to get the lock.
 	meta.lock = false;
-
-	//dirLock.unlock();
-	dirLock.unlock();
+	lk.unlock();
+	meta.cond.notify_one();
 }
 
 void STORAGE::Filesystem::shutdown(int code) {
-	dirLock.lock();
+	static bool done;
+	if (done) {
+		return;
+	} else {
+		done = true;
+	}
+
+	// TODO: Check each file to make sure no thread has a lock before writing out the directory.
+
 	writeFileDirectory(dir); // Make sure that any changes are flushed to disk.
-	dirLock.unlock();
+
 	file.shutdown(code);
 }
 
 void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	logEvent(EVENT, "Writing file directory");
-	file.raw_write(reinterpret_cast<char*>(fd), FileDirectory::SIZE, 0);
+	char *buffer = (char*)malloc(FileDirectory::SIZE);
+	size_t pos = 0;
+	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->numFiles), sizeof(File));
+	pos += sizeof(File);
+	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->firstFree), sizeof(File));
+	pos += sizeof(File);
+	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->nextRawSpot), sizeof(size_t));
+	pos += sizeof(size_t);
+
+	for (int i = 0; i < MAXFILES; ++i) {
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].nameSize), sizeof(size_t));
+		pos += sizeof(size_t);
+		memcpy(buffer + pos, fd->files[i].name, FileMeta::MAXNAMELEN);
+		pos += FileMeta::MAXNAMELEN;
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].size), sizeof(size_t));
+		pos += sizeof(size_t);
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].virtualSize), sizeof(size_t));
+		pos += sizeof(size_t);
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].position), sizeof(size_t));
+		pos += sizeof(size_t);
+	}
+
+	file.raw_write(buffer, FileDirectory::SIZE, 0);
+	free(buffer);
 }
 
 STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 	logEvent(EVENT, "Reading file directory");
 	char *buffer = file.raw_read(0, FileDirectory::SIZE);
 	FileDirectory *directory = new FileDirectory();
-	memcpy(directory, reinterpret_cast<FileDirectory*>(buffer), FileDirectory::SIZE);
+	size_t pos = 0;
+
+	memcpy(&directory->numFiles, buffer + pos, sizeof(File));
+	pos += sizeof(File);
+	memcpy(&directory->firstFree, buffer + pos, sizeof(File));
+	pos += sizeof(File);
+	memcpy(&directory->nextRawSpot, buffer + pos, sizeof(size_t));
+	pos += sizeof(size_t);
+
+	for (size_t i = 0; i < directory->numFiles; ++i) {
+		memcpy(&directory->files[i].nameSize, buffer + pos, sizeof(size_t));
+		pos += sizeof(size_t);
+		memcpy(directory->files[i].name, buffer + pos, FileMeta::MAXNAMELEN);
+		pos += FileMeta::MAXNAMELEN;
+		memcpy(&directory->files[i].size, buffer + pos, sizeof(size_t));
+		pos += sizeof(size_t);
+		memcpy(&directory->files[i].virtualSize, buffer + pos, sizeof(size_t));
+		pos += sizeof(size_t);
+		memcpy(&directory->files[i].position, buffer + pos, sizeof(size_t));
+		pos += sizeof(size_t);
+	}
+
 	free(buffer);
 	return directory;
+}
+
+STORAGE::Writer STORAGE::Filesystem::getWriter(File f) {
+	return STORAGE::Writer(this, f);
+}
+
+STORAGE::Reader STORAGE::Filesystem::getReader(File f) {
+	return STORAGE::Reader(this, f);
+}
+
+size_t STORAGE::Filesystem::getSize(File f) {
+	return dir->files[f].size;
+}
+
+/*
+ *  File writer utility class
+ */
+size_t STORAGE::Writer::tell() {
+	return position;
+}
+
+void STORAGE::Writer::seek(off_t pos, StartLocation start) {
+	off_t loc = fs->dir->files[file].position;
+	size_t len = fs->dir->files[file].size;
+
+	if (start == BEGIN) {
+		if (pos > len || pos < 0) {
+			throw SeekOutOfBoundsException();
+		}
+		position = loc + pos;
+	} else if (start == END) {
+		if (len + pos > len || len + pos < 0) {
+			throw SeekOutOfBoundsException();
+		}
+		position = loc + len + pos;
+	}
+}
+
+void STORAGE::Writer::write(const char *data, size_t size) {
+	off_t loc = fs->dir->files[file].position;
+	size_t virtualSize = fs->dir->files[file].virtualSize;
+
+	// If there is not enough excess space available, we must create a new file for this write
+	// and release the current allocated space for new files.
+	if (position + size > virtualSize) {
+		// TODO: this...
+	}
+
+	// Update metadata in directory
+	fs->dir->files[file].size = size;
+
+	// Write the data
+	fs->file.raw_write(data, size, loc + position);
+}
+
+/*
+*  File reader utility class
+*/
+size_t STORAGE::Reader::tell() {
+	return position;
+}
+
+void STORAGE::Reader::seek(off_t pos, StartLocation start) {
+	off_t loc = fs->dir->files[file].position;
+	size_t len = fs->dir->files[file].size;
+
+	if (start == BEGIN) {
+		if (pos > len || pos < 0) {
+			throw SeekOutOfBoundsException();
+		}
+		position = loc + pos;
+	}
+	else if (start == END) {
+		if (len + pos > len || len + pos < 0) {
+			throw SeekOutOfBoundsException();
+		}
+		position = loc + len + pos;
+	}
+}
+
+char *STORAGE::Reader::read() {
+	size_t size = fs->getSize(file);
+	return read(size);
+}
+
+char *STORAGE::Reader::read(size_t amt) {
+	off_t loc = fs->dir->files[file].position;
+	size_t size = fs->dir->files[file].size;
+
+	// We don't want to be able to read beyond the last byte of the file.
+	if (position + amt > size) {
+		throw SeekOutOfBoundsException();
+	}
+
+	char *data = fs->file.raw_read(loc + position, amt);
+
+	return data;
 }

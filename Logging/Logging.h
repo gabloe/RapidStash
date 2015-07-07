@@ -8,10 +8,11 @@
 #include <ctime>
 #include <chrono>
 #include <string>
+#include <mutex>
 
 #define DEADLOCKTHRESHHOLD 5	// The number of wait cycles before we consider a deadlock issue
 #define LOGGING					// Enable logging
-#define LOGDEBUGGING			// Undefine this if you don't want the log to contain File/Function/Line of caller
+//#define LOGDEBUGGING			// Undefine this if you don't want the log to contain File/Function/Line of caller
 #define SHORTFILENAMES			// Enable short filenames
 
 #ifdef SHORTFILENAMES
@@ -38,7 +39,9 @@ static std::string LogEventTypeToString(LogEventType type) {
 }
 
 #ifdef LOGGING
+static std::mutex printLock;
 static void logEvent(LogEventType type, std::string msg) {
+	printLock.lock();
 	struct tm timeinfo;
 	std::fstream out(LOGPATH, std::fstream::out | std::fstream::app);
 	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
@@ -46,6 +49,7 @@ static void logEvent(LogEventType type, std::string msg) {
 	localtime_s(&timeinfo, &now_c);
 	out << std::put_time(&timeinfo, "%F %T") << " : " << LogEventTypeToString(type) << " - " << msg << std::endl;
 	out.close();
+	printLock.unlock();
 }
 #else
 #define logEvent(type, msg) {}
