@@ -24,7 +24,7 @@ int main() {
 
 	// Create 50 threads, concurrently write to 5 files.
 	std::thread threads[50];
-	srand(time(NULL));
+	srand((unsigned int)time(NULL));
 	for (int i = 0; i < 50; ++i) {
 		std::ostringstream os;
 		os << "MyFile" << rand() % 5;
