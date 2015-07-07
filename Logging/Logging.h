@@ -10,7 +10,7 @@
 #include <string>
 #include <mutex>
 
-#define LOGGING					// Enable logging
+//#define LOGGING					// Enable logging
 //#define LOGDEBUGGING			// Undefine this if you don't want the log to contain File/Function/Line of caller
 #define SHORTFILENAMES			// Enable short filenames
 

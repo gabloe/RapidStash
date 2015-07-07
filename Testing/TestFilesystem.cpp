@@ -25,7 +25,7 @@ int main() {
 	srand(time(NULL));
 	for (int i = 0; i < 500; ++i) {
 		std::ostringstream os;
-		os << "MyFile" << rand() % 400;
+		os << "MyFile" << rand() % 10;
 		threads[i] = std::thread(foo, &f, os.str());
 	}
 	
