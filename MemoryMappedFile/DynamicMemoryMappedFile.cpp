@@ -99,7 +99,11 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code = SUCCESS) {
 		exit(code);
 	}
 	writeHeader();
+
+	growthLock.lock();
 	munmap(fs, mapSize);
+	growthLock.unlock();
+
 	return code;
 }
 
@@ -113,7 +117,6 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, si
 	size_t start = pos + HEADER_SIZE;
 	size_t end = start + len;
 
-	// Need to ensure that if one thread grows the file, other threads wait
 	growthLock.lock();
 	if (end > mapSize - 1) {
 		grow(end - mapSize - 1);
@@ -127,11 +130,16 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, si
 char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t off) {
 	size_t start = pos + off;
 	size_t end = start + len;
+
+	growthLock.lock();
 	if (end > mapSize - 1) {
+		growthLock.unlock();
 		// Crash gently...
 		logEvent(ERROR, "Attempted to read beyond the end of the filesystem!");
 		shutdown(FAILURE);
 	}
+	growthLock.unlock();
+
 	char *data = (char *)malloc(len);
 	memcpy(data, fs + start, len);
 	return data;
@@ -159,6 +167,8 @@ int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool 
 }
 
 void STORAGE::DynamicMemoryMappedFile::writeHeader() {
+	std::lock_guard<std::mutex> lg(growthLock);
+
 	logEvent(EVENT, "Updating file header");
 	memcpy(fs, SANITY, sizeof(SANITY));
 	memcpy(fs + sizeof(SANITY), reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
@@ -180,18 +190,12 @@ bool STORAGE::DynamicMemoryMappedFile::sanityCheck(const char * header) {
 	return true;
 }
 
-void STORAGE::DynamicMemoryMappedFile::grow(size_t needed = PAGE_SIZE) {
-	// Calculate the number of pages needed to grow by
-	int amt = PAGE_SIZE;
-	needed = (size_t)ceil((double)needed*OVERAGE_FACTOR);
-	if (needed > PAGE_SIZE) {
-		int p = (int)ceil((double)needed / (double)PAGE_SIZE);
-		amt = p * PAGE_SIZE;
-	}
-
-	// Increase the size by some size
+void STORAGE::DynamicMemoryMappedFile::grow(size_t amt) {	// Increase the size by some size
 	static const unsigned int maxSize = (unsigned int)pow(2, 32) - 1;
-	mapSize = mapSize + amt > maxSize ? maxSize : mapSize + amt;
+	size_t testA = (size_t)ceil(mapSize * GROWTH_FACTOR) > maxSize ? maxSize : (size_t)ceil(mapSize * GROWTH_FACTOR);
+	size_t testB = mapSize + amt > maxSize ? maxSize : mapSize + amt;
+	mapSize = testA > testB ? testA : testB;
+
 #ifdef LOGDEBUGGING
 	std::ostringstream os;
 	os << mapSize;

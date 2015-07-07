@@ -32,11 +32,11 @@ void foo(STORAGE::Filesystem *f, std::string name) {
 
 int main() {
 	STORAGE::Filesystem f("test.txt");
-	std::thread threads[500];
-	for (int i = 0; i < 500; ++i) {
+	std::thread threads[5000];
+	for (int i = 0; i < 5000; ++i) {
 		std::ostringstream os;
 		os << i;
-		threads[i] = std::thread(foo, &f, "MyFile1");
+		threads[i] = std::thread(foo, &f, "MyFile" + os.str());
 	}
 	
 	for (auto& th : threads) {

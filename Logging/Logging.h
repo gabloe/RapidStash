@@ -10,17 +10,17 @@
 #include <string>
 #include <mutex>
 
-#define LOGGING					// Enable logging
+//#define LOGGING					// Enable logging
 //#define LOGDEBUGGING			// Undefine this if you don't want the log to contain File/Function/Line of caller
 #define SHORTFILENAMES			// Enable short filenames
 
-#ifdef SHORTFILENAMES
+#if defined(LOGDEBUGGING) && defined(SHORTFILENAMES)
 #define FILE (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
 #else
 #define FILE __FILE__
 #endif
 
-static const char* LOGPATH = "rs.log";
+static const char* LOGPATH = "eventlog.log";
 
 enum LogEventType {
 	ERROR,

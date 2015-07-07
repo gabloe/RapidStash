@@ -20,7 +20,7 @@ int ftruncate(int, size_t);
 #include <string>
 #include <mutex>
 
-#define OVERAGE_FACTOR 1.15 // Request 15% more space to accommodate for potential growth
+#define GROWTH_FACTOR 1.5
 static short VERSION = 1;
 static char SANITY[] = { 0x0,0x0,0xd,0x1,0xe,0x5,0x0,0xf,0xd,0x0,0x0,0xd,0xa,0xd,0x5 };
 #define HEADER_SIZE sizeof(VERSION) + sizeof(SANITY) + sizeof(size_t)

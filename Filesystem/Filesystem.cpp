@@ -166,6 +166,7 @@ void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	}
 
 	file.raw_write(buffer, FileDirectory::SIZE, 0);
+
 	free(buffer);
 }
 
