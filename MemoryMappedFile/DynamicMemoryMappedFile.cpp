@@ -103,7 +103,7 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code = SUCCESS) {
 	return code;
 }
 
-int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, off_t pos) {
+int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, size_t pos) {
 	// We are writing to the file.  It is not new anymore!
 	if (isNewFile) {
 		isNewFile = false;
@@ -124,7 +124,7 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, of
 	return 0;
 }
 
-char *STORAGE::DynamicMemoryMappedFile::raw_read(off_t pos, size_t len, off_t off) {
+char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t off) {
 	size_t start = pos + off;
 	size_t end = start + len;
 	if (end > mapSize - 1) {

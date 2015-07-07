@@ -10,7 +10,6 @@
 #include <string>
 #include <mutex>
 
-#define DEADLOCKTHRESHHOLD 5	// The number of wait cycles before we consider a deadlock issue
 #define LOGGING					// Enable logging
 //#define LOGDEBUGGING			// Undefine this if you don't want the log to contain File/Function/Line of caller
 #define SHORTFILENAMES			// Enable short filenames

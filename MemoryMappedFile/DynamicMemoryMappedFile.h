@@ -45,12 +45,12 @@ namespace STORAGE {
 		/*
 		 * Write raw data to the filesystem.
 		 */
-		int raw_write(const char*, size_t, off_t);
+		int raw_write(const char*, size_t, size_t);
 
 		/*
 		 * Read raw data from the filesystem.
 		 */
-		char *raw_read(off_t, size_t, off_t = HEADER_SIZE);
+		char *raw_read(size_t, size_t, size_t = HEADER_SIZE);
 
 		bool isNew() {
 			return isNewFile;

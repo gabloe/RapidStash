@@ -45,6 +45,7 @@ namespace STORAGE {
 	// A file is just am index into an internal array.
 	typedef unsigned short File;
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
+
 	static const unsigned short MAXFILES = std::numeric_limits<unsigned short>::max();
 
 	// Data to initially write to file location.  Used to reclaim files that get created but never written.
@@ -54,16 +55,20 @@ namespace STORAGE {
 		static const unsigned int MAXNAMELEN = 32;
 		static const unsigned int SIZE = MAXNAMELEN + 4 * sizeof(size_t);
 		
-		size_t nameSize;			// The number of characters for the file name
-		char name[MAXNAMELEN];		// The file name
-		size_t size;				// The number of bytes actually used for the file
-		size_t virtualSize;			// The total number of bytes allocated for the file
-		size_t position;			// The position of the file on disk
-		bool lock;					// The exclusive lock status of the file
-		std::condition_variable cond;
+		size_t nameSize;				// The number of characters for the file name
+		char name[MAXNAMELEN];			// The file name
+		size_t size;					// The number of bytes actually used for the file
+		size_t virtualSize;				// The total number of bytes allocated for the file
+		size_t position;				// The position of the file on disk
+		bool lock;						// The exclusive lock status of the file
+		std::condition_variable cond;	// Condition variable to wait on
+		std::thread::id tid;			// The owner of the lock
+		int writers;					// The number of threads writing
+		int readers;					// The number of threads reading
 
-		FileMeta() : nameSize(0), size(0), virtualSize(0), position(0), lock(false) {}
+		FileMeta() : nameSize(0), size(0), virtualSize(0), position(0), lock(false), readers(0), writers(0) {}
 		
+		/* Don't think I need a copy constructor
 		FileMeta(FileMeta& other) : lock(false) {
 			nameSize = other.nameSize;
 			memcpy(name, other.name, nameSize);
@@ -71,6 +76,7 @@ namespace STORAGE {
 			virtualSize = other.virtualSize;
 			position = other.position;
 		}
+		*/
 		
 	};
 
@@ -107,6 +113,11 @@ namespace STORAGE {
 			(FileMeta::SIZE * MAXFILES);
 	};
 
+	enum LockType {
+		READ,
+		WRITE
+	};
+
 	class Filesystem {
 	public:
 		friend class Writer;
@@ -116,8 +127,8 @@ namespace STORAGE {
 		void shutdown(int code = SUCCESS);
 		File select(std::string);
 		File createNewFile(std::string);
-		void lock(File);
-		void unlock(File);
+		void lock(File, LockType);
+		void unlock(File, LockType);
 		size_t getSize(File);
 		Writer getWriter(File);
 		Reader getReader(File);
@@ -153,7 +164,6 @@ namespace STORAGE {
 		Filesystem *fs;
 		File file;
 		size_t position;
-		char *readUnsafe(size_t);
 	};
 
 

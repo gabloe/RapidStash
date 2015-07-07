@@ -38,7 +38,7 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 	logEvent(EVENT, "New file at position " + os.str());
 
 	// Get the position of the new file
-	off_t pos = dir->files[index].position;
+	size_t pos = dir->files[index].position;
 
 	// Raw write a placeholder.  The actual file contents will be written later.
 	file.raw_write(FilePlaceholder, sizeof(FilePlaceholder), pos);
@@ -80,22 +80,48 @@ STORAGE::File STORAGE::Filesystem::select(std::string fname) {
 	return file;
 }
 
-void STORAGE::Filesystem::lock(File file) {
+void STORAGE::Filesystem::lock(File file, LockType type) {
+	std::thread::id id = std::this_thread::get_id();
+	std::ostringstream os;
+	os << "Thread " << id << " is locking " << file;
+	logEvent(EVENT, os.str());
+
 	// We are locking the file so that we can read and/or write
 	std::unique_lock<std::mutex> lk(dirLock);
 	FileMeta &meta = dir->files[file];
-	meta.cond.wait(lk, [&meta] {return !meta.lock; });
+	// Wait until the file is available (not locked)
+	meta.cond.wait(lk, [&] {return !meta.lock; });
 	meta.lock = true;
+	meta.tid = id;
+	if (type == READ) {
+		meta.readers++;
+	} else if (type == WRITE) {
+		meta.writers++;
+	}
 	lk.unlock();
-	meta.cond.notify_one();
 }
 
-void STORAGE::Filesystem::unlock(File file) {
+void STORAGE::Filesystem::unlock(File file, LockType type) {
+	std::thread::id id = std::this_thread::get_id();
+	std::ostringstream os;
+	os << "Thread " << id << " is unlocking " << file;
+	logEvent(EVENT, os.str());
+
 	std::unique_lock<std::mutex> lk(dirLock);
 	FileMeta &meta = dir->files[file];
-	meta.cond.wait(lk, [&meta] {return meta.lock; });
+	// Wait until the file is actually locked and the current thread is the owner of the lock
+	meta.cond.wait(lk, [&] {return meta.lock && meta.tid == id; });
 	// Signal a thread that is busy waiting to get the lock.
 	meta.lock = false;
+
+	// TODO: Currently we give exlusive lock to a thread (both read and write).  But, if there are only readers
+	// then we may not need to lock.  Use the readers and writers field to logically detemine when to trigger
+	// the condition variable.
+	if (type == READ) {
+		meta.readers--;
+	} else if (type == WRITE) {
+		meta.writers--;
+	}
 	lk.unlock();
 	meta.cond.notify_one();
 }
@@ -193,7 +219,7 @@ size_t STORAGE::Writer::tell() {
 }
 
 void STORAGE::Writer::seek(off_t pos, StartLocation start) {
-	off_t loc = fs->dir->files[file].position;
+	size_t loc = fs->dir->files[file].position;
 	size_t len = fs->dir->files[file].size;
 
 	if (start == BEGIN) {
@@ -210,7 +236,7 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 }
 
 void STORAGE::Writer::write(const char *data, size_t size) {
-	off_t loc = fs->dir->files[file].position;
+	size_t loc = fs->dir->files[file].position;
 	size_t virtualSize = fs->dir->files[file].virtualSize;
 
 	// If there is not enough excess space available, we must create a new file for this write
@@ -234,7 +260,7 @@ size_t STORAGE::Reader::tell() {
 }
 
 void STORAGE::Reader::seek(off_t pos, StartLocation start) {
-	off_t loc = fs->dir->files[file].position;
+	size_t loc = fs->dir->files[file].position;
 	size_t len = fs->dir->files[file].size;
 
 	if (start == BEGIN) {
@@ -257,7 +283,7 @@ char *STORAGE::Reader::read() {
 }
 
 char *STORAGE::Reader::read(size_t amt) {
-	off_t loc = fs->dir->files[file].position;
+	size_t loc = fs->dir->files[file].position;
 	size_t size = fs->dir->files[file].size;
 
 	// We don't want to be able to read beyond the last byte of the file.

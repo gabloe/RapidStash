@@ -6,13 +6,15 @@ void foo(STORAGE::Filesystem *f, std::string name) {
 	auto writer = f->getWriter(file);
 	auto reader = f->getReader(file);
 
-	f->lock(file);
+	f->lock(file, STORAGE::WRITE);
 
 	std::thread::id this_id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << this_id;
 	std::string data("Thread #" + os.str());
 	writer.write(data.c_str(), data.size());
+
+	// Check written data
 	try {
 		char *res;
 		res = reader.read();
@@ -25,13 +27,13 @@ void foo(STORAGE::Filesystem *f, std::string name) {
 		logEvent(ERROR, "Error reading file");
 	}
 
-	f->unlock(file);
+	f->unlock(file, STORAGE::WRITE);
 }
 
 int main() {
 	STORAGE::Filesystem f("test.txt");
-	std::thread threads[100];
-	for (int i = 0; i < 100; ++i) {
+	std::thread threads[500];
+	for (int i = 0; i < 500; ++i) {
 		std::ostringstream os;
 		os << i;
 		threads[i] = std::thread(foo, &f, "MyFile1");
