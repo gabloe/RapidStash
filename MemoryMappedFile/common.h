@@ -8,5 +8,4 @@
 #define FAILURE 1
 
 bool fileExists(const char*);
-
 #endif

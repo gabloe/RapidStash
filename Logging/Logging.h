@@ -10,7 +10,7 @@
 #include <string>
 #include <mutex>
 
-//#define LOGGING					// Enable logging
+#define LOGGING					// Enable logging
 //#define LOGDEBUGGING			// Undefine this if you don't want the log to contain File/Function/Line of caller
 #define SHORTFILENAMES			// Enable short filenames
 
@@ -40,15 +40,14 @@ static std::string LogEventTypeToString(LogEventType type) {
 #ifdef LOGGING
 static std::mutex printLock;
 static void logEvent(LogEventType type, std::string msg) {
-	printLock.lock();
+	std::lock_guard<std::mutex> lg(printLock);
 	struct tm timeinfo;
 	std::fstream out(LOGPATH, std::fstream::out | std::fstream::app);
 	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 	std::time_t now_c = std::chrono::system_clock::to_time_t(now);
 	localtime_s(&timeinfo, &now_c);
-	out << std::put_time(&timeinfo, "%F %T") << " : " << LogEventTypeToString(type) << " - " << msg << std::endl;
+	out << std::put_time(&timeinfo, "%F %T") << " : " << LogEventTypeToString(type) << " - " << msg << "\n";
 	out.close();
-	printLock.unlock();
 }
 #else
 #define logEvent(type, msg) {}

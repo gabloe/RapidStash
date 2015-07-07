@@ -10,33 +10,23 @@ void foo(STORAGE::Filesystem *f, std::string name) {
 
 	std::thread::id this_id = std::this_thread::get_id();
 	std::ostringstream os;
-	os << this_id;
-	std::string data("Thread #" + os.str());
+	os << "Thread # " << this_id;
+	std::string data = os.str();
 	writer.write(data.c_str(), data.size());
 
-	// Check written data
-	try {
-		char *res;
-		res = reader.read();
-		std::string str(res, f->getSize(file));
-		std::ostringstream os2;
-		os2 << data.compare(str);
-		logEvent(EVENT, "Wrote " + data + ", read " + str + " same? " + os2.str());
-		free(res);
-	} catch (STORAGE::SeekOutOfBoundsException &e) {
-		logEvent(ERROR, "Error reading file");
-	}
-
 	f->unlock(file, STORAGE::WRITE);
+
+	return;
 }
 
 int main() {
-	STORAGE::Filesystem f("test.txt");
-	std::thread threads[5000];
-	for (int i = 0; i < 5000; ++i) {
+	STORAGE::Filesystem f("test.stash");
+	std::thread threads[500];
+	srand(time(NULL));
+	for (int i = 0; i < 500; ++i) {
 		std::ostringstream os;
-		os << i;
-		threads[i] = std::thread(foo, &f, "MyFile" + os.str());
+		os << "MyFile" << rand() % 400;
+		threads[i] = std::thread(foo, &f, os.str());
 	}
 	
 	for (auto& th : threads) {

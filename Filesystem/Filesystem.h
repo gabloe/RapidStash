@@ -42,6 +42,8 @@ namespace STORAGE {
 	class Filesystem;
 	class Writer;
 
+	static std::thread::id nobody;  // Reset for lock ownership
+
 	// A file is just am index into an internal array.
 	typedef unsigned short File;
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
@@ -183,6 +185,12 @@ namespace STORAGE {
 	class SeekOutOfBoundsException : public std::exception {
 		virtual const char* what() const throw(){
 			return "Attempted to seek beyond the end of the file or before the beginning of the file.";
+		}
+	};
+
+	class ReadOutOfBoundsException : public std::exception {
+		virtual const char* what() const throw() {
+			return "Attempted to read beyond the end of the file or before the beginning of the file.";
 		}
 	};
 }

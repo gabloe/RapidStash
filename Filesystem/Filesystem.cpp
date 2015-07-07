@@ -2,8 +2,6 @@
 
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	// Set up file directory if the backing file is new.
-	std::lock_guard<std::mutex> lk(dirLock);
-
 	if (file.isNew()) {
 		logEvent(EVENT, "Backing file is new");
 		dir = new FileDirectory();
@@ -81,16 +79,17 @@ STORAGE::File STORAGE::Filesystem::select(std::string fname) {
 }
 
 void STORAGE::Filesystem::lock(File file, LockType type) {
+	// We are locking the file so that we can read and/or write
+	std::unique_lock<std::mutex> lk(dirLock);
+
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread " << id << " is locking " << file;
 	logEvent(EVENT, os.str());
 
-	// We are locking the file so that we can read and/or write
-	std::unique_lock<std::mutex> lk(dirLock);
 	FileMeta &meta = dir->files[file];
 	// Wait until the file is available (not locked)
-	meta.cond.wait(lk, [&] {return !meta.lock; });
+	meta.cond.wait(lk, [&meta] {return !meta.lock; });
 	meta.lock = true;
 	meta.tid = id;
 	if (type == READ) {
@@ -98,21 +97,21 @@ void STORAGE::Filesystem::lock(File file, LockType type) {
 	} else if (type == WRITE) {
 		meta.writers++;
 	}
-	lk.unlock();
 }
 
 void STORAGE::Filesystem::unlock(File file, LockType type) {
+	std::unique_lock<std::mutex> lk(dirLock);
+
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread " << id << " is unlocking " << file;
 	logEvent(EVENT, os.str());
 
-	std::unique_lock<std::mutex> lk(dirLock);
 	FileMeta &meta = dir->files[file];
 	// Wait until the file is actually locked and the current thread is the owner of the lock
-	meta.cond.wait(lk, [&] {return meta.lock && meta.tid == id; });
-	// Signal a thread that is busy waiting to get the lock.
+	meta.cond.wait(lk, [&meta, &id] {return meta.lock && meta.tid == id; });
 	meta.lock = false;
+	meta.tid = nobody;
 
 	// TODO: Currently we give exlusive lock to a thread (both read and write).  But, if there are only readers
 	// then we may not need to lock.  Use the readers and writers field to logically detemine when to trigger
@@ -127,17 +126,7 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 }
 
 void STORAGE::Filesystem::shutdown(int code) {
-	static bool done;
-	if (done) {
-		return;
-	} else {
-		done = true;
-	}
-
-	// TODO: Check each file to make sure no thread has a lock before writing out the directory.
-
-	writeFileDirectory(dir); // Make sure that any changes are flushed to disk.
-
+	writeFileDirectory(dir); // Make sure that any changes to the directory are flushed to disk.
 	file.shutdown(code);
 }
 
@@ -280,7 +269,16 @@ void STORAGE::Reader::seek(off_t pos, StartLocation start) {
 
 char *STORAGE::Reader::read() {
 	size_t size = fs->getSize(file);
-	return read(size);
+	char *buffer = NULL;
+	try {
+		buffer = read(size);
+	} catch (ReadOutOfBoundsException) {
+		logEvent(ERROR, "Read out of bounds");
+		// Generate bogus buffer
+		buffer = (char*)malloc(size);
+		memset(buffer, 0, size);
+	}
+	return buffer;
 }
 
 char *STORAGE::Reader::read(size_t amt) {
@@ -289,7 +287,7 @@ char *STORAGE::Reader::read(size_t amt) {
 
 	// We don't want to be able to read beyond the last byte of the file.
 	if (position + amt > size) {
-		throw SeekOutOfBoundsException();
+		throw ReadOutOfBoundsException();
 	}
 
 	char *data = fs->file.raw_read(loc + position, amt);

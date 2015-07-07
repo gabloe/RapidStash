@@ -117,6 +117,7 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, si
 	size_t start = pos + HEADER_SIZE;
 	size_t end = start + len;
 
+	// TODO: If a growth happens, we cannot have threads trying to read/write.  This will cause undefined behavior
 	growthLock.lock();
 	if (end > mapSize - 1) {
 		grow(end - mapSize - 1);
