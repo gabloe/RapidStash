@@ -46,7 +46,11 @@ static void logEvent(LogEventType type, std::string msg) {
 	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 	std::time_t now_c = std::chrono::system_clock::to_time_t(now);
 	localtime_s(&timeinfo, &now_c);
+#if _MSC_VER == 1900
 	out << std::put_time(&timeinfo, "%F %T") << " : " << LogEventTypeToString(type) << " - " << msg << "\n";
+#else
+	out << std::put_time(&timeinfo, "%Y-%m-%d %H:%M:%S" ) << " : " << LogEventTypeToString(type) << " - " << msg << "\n";
+#endif
 	out.close();
 }
 #else
