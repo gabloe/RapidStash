@@ -17,25 +17,22 @@ const int NumThreads = 50;
 
 
 void foo(STORAGE::Filesystem *f, int id) {
-
-
 	for (int i = id; i < Max; i += NumThreads) {
 
 		// Create random file
-		std::ostringstream os;
-		os << "MyFile" << rand();
-
-		STORAGE::File file = f->select(os.str());
+		std::ostringstream filename;
+		filename << "MyFile" << i;
+		STORAGE::File file = f->select(filename.str());
 		auto writer = f->getWriter(file);
-		os.clear();
+		
 
 		// Create random data
-		os << "Thread # " << i;
-		std::string data = os.str();
+		std::ostringstream data;
+		data << "Thread # " << i;
 
 		f->lock(file, STORAGE::WRITE);
 		{
-			writer.write(data.c_str(), data.size());
+			writer.write(data.str().c_str(), data.str().size());
 		}
 		f->unlock(file, STORAGE::WRITE);
 
