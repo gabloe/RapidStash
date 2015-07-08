@@ -4,7 +4,6 @@
 #include "Logging.h"
 
 #include <chrono>
-#include <atomic>
 
 #define VECTOR 0
 
@@ -16,7 +15,6 @@
 
 const int Max = 50000;
 const int NumThreads = 50;
-static std::atomic<size_t> bytes;
 
 void foo(STORAGE::Filesystem *f, int id) {
 	for (int i = id; i < Max; i += NumThreads) {
@@ -24,16 +22,17 @@ void foo(STORAGE::Filesystem *f, int id) {
 		// Create random file
 		std::ostringstream filename;
 		filename << "MyFile" << i;
+
 		STORAGE::File file = f->select(filename.str());
 		auto writer = f->getWriter(file);
 		auto reader = f->getReader(file);
-		// Create random data
+
+		// Write lots of data
 		std::ostringstream data;
-		data << "Thread # " << i;
+		data << "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNO";
 
 		f->lock(file, STORAGE::WRITE);
 		{
-			bytes.store(bytes.load() + data.str().size());
 			writer.write(data.str().c_str(), data.str().size());
 #if EXTRATESTING
 			char *buf = reader.read();
@@ -47,26 +46,24 @@ void foo(STORAGE::Filesystem *f, int id) {
 #endif
 		}
 		f->unlock(file, STORAGE::WRITE);
-
-		if (i % 1000 == 0) {
-			std::cout << "Just finished " << i << std::endl;
-		}
 	}
 	return;
 }
 
 int main() {
-	bytes.store(0);
+
+#if !LOGGING
+	std::cout << "Working..." << std::endl;
+#endif
+	std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+
 	STORAGE::Filesystem f("test.stash");
 #if VECTOR
   std::vector<std::thread> threads;
 #else
 	std::array<std::thread,NumThreads> threads;
 #endif
-	
-	srand((unsigned int)time(NULL));
 
-	std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < NumThreads; ++i) {
 #if VECTOR
 		threads.push_back(std::thread(foo, &f, i));
@@ -84,17 +81,30 @@ int main() {
 	std::chrono::duration<double> turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 	const double totalTime = turnaround.count();
 	double throughput = (Max * NumThreads) / totalTime;
-	double bps = bytes.load() / totalTime;
+	double bps = f.count() / totalTime;
 	std::ostringstream os, os2;
-	os << "Turnaround time: " << totalTime << " seconds";
-	os2 << "Throughput: " << throughput << " writes per second. (" << bps << " bytes per second)";
-	logEvent(EVENT, os.str());
-	logEvent(EVENT, os2.str());
+	os << "Turnaround time: " << totalTime << " s";
+	if (throughput > 1000) {
+		os2 << "Throughput: " << throughput/1000 << " thousand writes per second. (" << bps/1024 << " kbytes per second)";
+	} else {
+		os2 << "Throughput: " << throughput << " writes per second. (" << bps << " bytes per second)";
+	}
 
 #if VECTOR
 	threads.clear();
 #endif
 
 	f.shutdown();
+
+#if LOGGING
+	logEvent(EVENT, os.str());
+	logEvent(EVENT, os2.str());
+#else
+	std::cout << os.str() << std::endl;
+	std::cout << os2.str() << std::endl;
+	std::cout << "Press enter to continue..." << std::endl;
+	std::getchar();
+#endif
+
 	return 0;
 }

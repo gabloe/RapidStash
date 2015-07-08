@@ -1,6 +1,8 @@
 #include "Filesystem.h"
 
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
+	bytesWritten.store(0);
+
 	// Set up file directory if the backing file is new.
 	if (file.isNew()) {
 		logEvent(EVENT, "Backing file is new");
@@ -23,8 +25,6 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 
 
 STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
-	std::lock_guard<std::mutex> lk(dirLock);
-
 	logEvent(EVENT, "Creating file: " + fname);
 	size_t nameLen = fname.size();
 	if (nameLen > FileMeta::MAXNAMELEN) {
@@ -58,9 +58,7 @@ STORAGE::File STORAGE::Filesystem::select(std::string fname) {
 	if (fileExists) {
 		logEvent(EVENT, "File " + fname + " exists");
 		file = lookup[fname];
-		lk.unlock();
 	} else {
-		lk.unlock();
 		// File doesn't exist.  Create it.
 		file = createNewFile(fname);
 	}
@@ -117,6 +115,10 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 	std::ostringstream os2;
 	os2 << "Thread " << id << " unlocked " << file;
 	logEvent(THREAD, os2.str());
+}
+
+size_t STORAGE::Filesystem::count() {
+	return bytesWritten.load();
 }
 
 void STORAGE::Filesystem::shutdown(int code) {
@@ -222,6 +224,8 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 void STORAGE::Writer::write(const char *data, size_t size) {
 	size_t &loc = fs->dir->files[file].position;
 	size_t &virtualSize = fs->dir->files[file].virtualSize;
+
+	bytesWritten.store(bytesWritten.load() + size);
 
 	// If there is not enough excess space available, we must create a new file for this write
 	// and release the current allocated space for new files.

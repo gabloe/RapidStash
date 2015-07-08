@@ -43,9 +43,10 @@ Filesystem structure:
 namespace STORAGE {
 	class Filesystem;
 	class Writer;
-  class Reader;
+    class Reader;
 
 	static std::thread::id nobody;  // Reset for lock ownership
+	static std::atomic<size_t> bytesWritten;
 
 	// A file is just am index into an internal array.
 	typedef unsigned short File;
@@ -102,7 +103,7 @@ namespace STORAGE {
 		/*
 		 *  Statics
 		 */
-		static const size_t MINALLOCATION = 1024;  // Pre-Allocate 1024 bytes per file.
+		static const size_t MINALLOCATION = 256;  // Pre-Allocate 128 bytes per file.
 		static const unsigned int SIZE = 2 * sizeof(File) + sizeof(size_t) +
 			(FileMeta::SIZE * MAXFILES);
 	};
@@ -126,6 +127,7 @@ namespace STORAGE {
 		size_t getSize(File);
 		Writer getWriter(File);
 		Reader getReader(File);
+		size_t count();
 
 	private:
 		DynamicMemoryMappedFile file;

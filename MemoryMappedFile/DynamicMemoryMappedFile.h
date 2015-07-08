@@ -19,6 +19,7 @@ int ftruncate(int, size_t);
 #include <iostream>
 #include <string>
 #include <mutex>
+#include <atomic>
 
 #define GROWTH_FACTOR 1.25
 static short VERSION = 1;
@@ -51,6 +52,11 @@ namespace STORAGE {
 		 * Read raw data from the filesystem.
 		 */
 		char *raw_read(size_t, size_t, size_t = HEADER_SIZE);
+
+		/*
+		 *  Returns a count of the total number of written bytes so far.
+		 */
+		std::atomic<size_t> &count();
 
 		bool isNew() {
 			return isNewFile;
