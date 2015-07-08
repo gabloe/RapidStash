@@ -183,11 +183,18 @@ bool STORAGE::DynamicMemoryMappedFile::sanityCheck(const char * header) {
 	return true;
 }
 
-void STORAGE::DynamicMemoryMappedFile::grow(size_t amt) {	// Increase the size by some size
+void STORAGE::DynamicMemoryMappedFile::grow(size_t amt) {	// Increase the size by some amount
 	static const unsigned int maxSize = (unsigned int)pow(2, 32) - 1;
 	size_t testA = (size_t)ceil(mapSize * GROWTH_FACTOR) > maxSize ? maxSize : (size_t)ceil(mapSize * GROWTH_FACTOR);
 	size_t testB = mapSize + amt > maxSize ? maxSize : mapSize + amt;
-	mapSize = testA > testB ? testA : testB;
+	size_t winner = testB > testA ? testB : testA;
+	size_t remainder = winner % PAGE_SIZE;
+
+	// Round up to the nearest page
+	mapSize = winner;
+	if (remainder != 0) {
+		mapSize += PAGE_SIZE - remainder;
+	}
 
 #if EXTRATESTING
 	std::ostringstream os;

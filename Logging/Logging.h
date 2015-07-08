@@ -11,7 +11,7 @@
 #include <mutex>
 #include <atomic>
 
-#define EXTRATESTING	  0			  // Perform and log verification tests
+#define EXTRATESTING	  1			  // Perform and log verification tests
 #define THREADLOGGING	  0			  // Enable loging of thread events (lock and unlock)
 #define LOGGING			  1			  // Enable logging
 #define LOGDEBUGGING	  0			  // Undefine this if you don't want the log to contain File/Function/Line of caller
@@ -87,7 +87,7 @@ public:
 		lineStr << line_;
 		std::string debuggingMsg = "(" + file_ + "::" + caller_ + ":" + lineStr.str() + ")";
 		std::ostringstream newMsg;
-		newMsg << std::setw(50) << std::left << msg << std::right << debuggingMsg;
+		newMsg << std::setw(55) << std::left << msg << std::right << debuggingMsg;
 		logEvent(type, newMsg.str());
 	}
 private:

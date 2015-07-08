@@ -25,7 +25,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 		filename << "MyFile" << i;
 		STORAGE::File file = f->select(filename.str());
 		auto writer = f->getWriter(file);
-
+		auto reader = f->getReader(file);
 		// Create random data
 		std::ostringstream data;
 		data << "Thread # " << i;
@@ -33,10 +33,20 @@ void foo(STORAGE::Filesystem *f, int id) {
 		f->lock(file, STORAGE::WRITE);
 		{
 			writer.write(data.str().c_str(), data.str().size());
+#if EXTRATESTING
+			char *buf = reader.read();
+			std::string res(buf, f->getSize(file));
+			if (data.str().compare(res) == 0) {
+				logEvent(EVENT, "Written data verified for file " + filename.str());
+			} else {
+				logEvent(ERROR, "Written data incorrect for file " + filename.str());
+				logEvent(ERROR, "Found '" + res + "', should be '" + data.str() + "'");
+			}
+#endif
 		}
 		f->unlock(file, STORAGE::WRITE);
 
-		if (i % 100 == 0) {
+		if (i % 1000 == 0) {
 			std::cout << "Just finished " << i << std::endl;
 		}
 	}

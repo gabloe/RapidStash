@@ -35,7 +35,6 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 	File index = dir->insert(fname);
 	std::ostringstream os;
 	os << index;
-	logEvent(EVENT, "New file at position " + os.str());
 
 	// Get the position of the new file
 	size_t &pos = dir->files[index].position;
@@ -45,19 +44,6 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 
 	// Update lookup table
 	lookup[fname] = index;
-
-#if EXTRATESTING
-	logEvent(EVENT, "Verifying file placeholder");
-	// Some testing to make sure we are writing the correct stuff
-	char *test = file.raw_read(pos, sizeof(FilePlaceholder));
-	for (int i = 0; i < sizeof(FilePlaceholder); ++i) {
-		if (test[i] != FilePlaceholder[i]) {
-			logEvent(ERROR, "Error verifying file placeholder");
-			shutdown(FAILURE);
-		}
-	}
-	logEvent(EVENT, "File placeholder verified");
-#endif
 
 	return index;
 }
