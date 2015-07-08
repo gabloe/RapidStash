@@ -4,6 +4,7 @@
 #include "Logging.h"
 
 #include <chrono>
+#include <atomic>
 
 #define VECTOR 0
 
@@ -15,7 +16,7 @@
 
 const int Max = 50000;
 const int NumThreads = 50;
-
+static std::atomic<size_t> bytes;
 
 void foo(STORAGE::Filesystem *f, int id) {
 	for (int i = id; i < Max; i += NumThreads) {
@@ -32,6 +33,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 
 		f->lock(file, STORAGE::WRITE);
 		{
+			bytes.store(bytes.load() + data.str().size());
 			writer.write(data.str().c_str(), data.str().size());
 #if EXTRATESTING
 			char *buf = reader.read();
@@ -54,6 +56,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 }
 
 int main() {
+	bytes.store(0);
 	STORAGE::Filesystem f("test.stash");
 #if VECTOR
   std::vector<std::thread> threads;
@@ -81,9 +84,10 @@ int main() {
 	std::chrono::duration<double> turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 	const double totalTime = turnaround.count();
 	double throughput = (Max * NumThreads) / totalTime;
+	double bps = bytes.load() / totalTime;
 	std::ostringstream os, os2;
 	os << "Turnaround time: " << totalTime << " seconds";
-	os2 << "Throughput: " << throughput << " writes per second";
+	os2 << "Throughput: " << throughput << " writes per second. (" << bps << " bytes per second)";
 	logEvent(EVENT, os.str());
 	logEvent(EVENT, os2.str());
 
