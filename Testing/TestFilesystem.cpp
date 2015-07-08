@@ -1,18 +1,19 @@
+
 #include "Filesystem.h"
 #include "Logging.h"
 
 void foo(STORAGE::Filesystem *f, std::string name) {
 	STORAGE::File file = f->select(name);
 	auto writer = f->getWriter(file);
-
-	f->lock(file, STORAGE::WRITE);
-
 	std::thread::id this_id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread # " << this_id;
 	std::string data = os.str();
-	writer.write(data.c_str(), data.size());
 
+	f->lock(file, STORAGE::WRITE);
+  {
+	  writer.write(data.c_str(), data.size());
+  }
 	f->unlock(file, STORAGE::WRITE);
 
 	return;
