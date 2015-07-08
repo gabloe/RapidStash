@@ -149,7 +149,7 @@ void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->nextRawSpot), sizeof(size_t));
 	pos += sizeof(size_t);
 
-	for (int i = 0; i < MAXFILES; ++i) {
+	for (int i = 0; i < dir->numFiles; ++i) {
 		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].nameSize), sizeof(char));
 		pos += sizeof(char);
 		memcpy(buffer + pos, fd->files[i].name, FileMeta::MAXNAMELEN);

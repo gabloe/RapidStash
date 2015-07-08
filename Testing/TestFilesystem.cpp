@@ -3,6 +3,7 @@
 #include "Filesystem.h"
 #include "Logging.h"
 
+#include <chrono>
 
 #define VECTOR 0
 
@@ -24,7 +25,6 @@ void foo(STORAGE::Filesystem *f, int id) {
 		filename << "MyFile" << i;
 		STORAGE::File file = f->select(filename.str());
 		auto writer = f->getWriter(file);
-		
 
 		// Create random data
 		std::ostringstream data;
@@ -37,15 +37,13 @@ void foo(STORAGE::Filesystem *f, int id) {
 		f->unlock(file, STORAGE::WRITE);
 
 		if (i % 100 == 0) {
-			std::cout << "Just finishd " << i << std::endl;
+			std::cout << "Just finished " << i << std::endl;
 		}
 	}
 	return;
 }
 
 int main() {
-	
-	static int c;
 	using namespace std::literals;
 	STORAGE::Filesystem f("test.stash");
 #if VECTOR
@@ -55,7 +53,8 @@ int main() {
 #endif
 	
 	srand((unsigned int)time(NULL));
-	
+
+	std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < NumThreads; ++i) {
 #if VECTOR
 		threads.push_back(std::thread(foo, &f, i));
@@ -67,10 +66,22 @@ int main() {
 	for (auto& th : threads) {
 		th.join();
 	}
+
+	std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+
+	std::chrono::duration<double> turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+	const double totalTime = turnaround.count();
+	double throughput = (Max * NumThreads) / totalTime;
+	std::cout << "Turnaround time: " << totalTime << " seconds" << std::endl;
+	std::cout << "Throughput: " << throughput << " writes per second" << std::endl;
+	std::getchar();
+
 #if VECTOR
 	threads.clear();
 #endif
 	
+	
+
 	f.shutdown();
 	return 0;
 }
