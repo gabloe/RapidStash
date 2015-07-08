@@ -12,26 +12,42 @@
 #include <array>
 #endif
 
+const int Max = 50000;
+const int NumThreads = 50;
 
-void foo(STORAGE::Filesystem *f, std::string name) {
-	STORAGE::File file = f->select(name);
-	auto writer = f->getWriter(file);
-	std::thread::id this_id = std::this_thread::get_id();
-	std::ostringstream os;
-	os << "Thread # " << this_id;
-	std::string data = os.str();
 
-	f->lock(file, STORAGE::WRITE);
-  {
-	  writer.write(data.c_str(), data.size());
-  }
-	f->unlock(file, STORAGE::WRITE);
+void foo(STORAGE::Filesystem *f, int id) {
 
+
+	for (int i = id; i < Max; i += NumThreads) {
+
+		// Create random file
+		std::ostringstream os;
+		os << "MyFile" << rand();
+
+		STORAGE::File file = f->select(os.str());
+		auto writer = f->getWriter(file);
+		os.clear();
+
+		// Create random data
+		os << "Thread # " << i;
+		std::string data = os.str();
+
+		f->lock(file, STORAGE::WRITE);
+		{
+			writer.write(data.c_str(), data.size());
+		}
+		f->unlock(file, STORAGE::WRITE);
+
+		if (i % 100 == 0) {
+			std::cout << "Just finishd " << i << std::endl;
+		}
+	}
 	return;
 }
 
 int main() {
-	const int NumThreads = 50;
+	
 	static int c;
 	using namespace std::literals;
 	STORAGE::Filesystem f("test.stash");
@@ -40,29 +56,24 @@ int main() {
 #else
 	std::array<std::thread,NumThreads> threads;
 #endif
-	for (int j = 0; j < 50000; ++j) {
-
-		srand((unsigned int)time(NULL));
-		for (int i = 0; i < NumThreads; ++i) {
-			std::ostringstream os;
-			os << "MyFile" << rand();
+	
+	srand((unsigned int)time(NULL));
+	
+	for (int i = 0; i < NumThreads; ++i) {
 #if VECTOR
-			threads.push_back(std::thread(foo, &f, os.str()));
+		threads.push_back(std::thread(foo, &f, i));
 #else
-			threads[i] = std::thread(foo, &f, os.str());
+		threads[i] = std::thread(foo, &f, i);
 #endif
-		}
-
-		for (auto& th : threads) {
-			th.join();
-		}
-#if VECTOR
-		threads.clear();
-#endif
-		if (j % 100 == 0) {
-			std::cout << j << std::endl;
-		}
 	}
+
+	for (auto& th : threads) {
+		th.join();
+	}
+#if VECTOR
+	threads.clear();
+#endif
+	
 	f.shutdown();
 	return 0;
 }
