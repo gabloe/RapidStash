@@ -64,7 +64,7 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 			shutdown(FAILURE);
 		}
 
-#ifdef LOGDEBUGGING
+#if EXTRATESTING
 		// Verify size matches recorded size from header.  If mismatched then
 		// potentially we lost data on the last write.
 		size_t msize;
@@ -100,9 +100,7 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code = SUCCESS) {
 	}
 	writeHeader();
 
-	growthLock.lock();
 	munmap(fs, mapSize);
-	growthLock.unlock();
 
 	return code;
 }
@@ -118,11 +116,9 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, si
 	size_t end = start + len;
 
 	// TODO: If a growth happens, we cannot have threads trying to read/write.  This will cause undefined behavior
-	growthLock.lock();
 	if (end > mapSize - 1) {
 		grow(end - mapSize - 1);
 	}
-	growthLock.unlock();
 
 	memcpy(fs + start, data, len);
 	return 0;
@@ -132,14 +128,11 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 	size_t start = pos + off;
 	size_t end = start + len;
 
-	growthLock.lock();
 	if (end > mapSize - 1) {
-		growthLock.unlock();
 		// Crash gently...
 		logEvent(ERROR, "Attempted to read beyond the end of the filesystem!");
 		shutdown(FAILURE);
 	}
-	growthLock.unlock();
 
 	char *data = (char *)malloc(len);
 	memcpy(data, fs + start, len);
@@ -168,8 +161,6 @@ int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool 
 }
 
 void STORAGE::DynamicMemoryMappedFile::writeHeader() {
-	std::lock_guard<std::mutex> lg(growthLock);
-
 	logEvent(EVENT, "Updating file header");
 	memcpy(fs, SANITY, sizeof(SANITY));
 	memcpy(fs + sizeof(SANITY), reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
@@ -197,7 +188,7 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t amt) {	// Increase the size b
 	size_t testB = mapSize + amt > maxSize ? maxSize : mapSize + amt;
 	mapSize = testA > testB ? testA : testB;
 
-#ifdef LOGDEBUGGING
+#if EXTRATESTING
 	std::ostringstream os;
 	os << mapSize;
 	logEvent(EVENT, "Growing filesystem to " + os.str());

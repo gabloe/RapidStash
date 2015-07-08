@@ -48,16 +48,16 @@ namespace STORAGE {
 	typedef unsigned short File;
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
 
-	static const unsigned short MAXFILES = 2 << 10; // std::numeric_limits<unsigned short>::max();
+	static const unsigned short MAXFILES = (2 << 15) - 1; // std::numeric_limits<unsigned short>::max();
 
 	// Data to initially write to file location.  Used to reclaim files that get created but never written.
 	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd,0xc,0x0,0xd,0xe };
 
 	struct FileMeta {
-		static const unsigned int MAXNAMELEN = 32;
+		static const char MAXNAMELEN = 32;
 		static const unsigned int SIZE = MAXNAMELEN + 4 * sizeof(size_t);
 		
-		size_t nameSize;				// The number of characters for the file name
+		char nameSize;				// The number of characters for the file name
 		char name[MAXNAMELEN];			// The file name
 		size_t size;					// The number of bytes actually used for the file
 		size_t virtualSize;				// The total number of bytes allocated for the file
@@ -69,17 +69,6 @@ namespace STORAGE {
 		int readers;					// The number of threads reading
 
 		FileMeta() : nameSize(0), size(0), virtualSize(0), position(0), lock(false), readers(0), writers(0) {}
-		
-		/* Don't think I need a copy constructor
-		FileMeta(FileMeta& other) : lock(false) {
-			nameSize = other.nameSize;
-			memcpy(name, other.name, nameSize);
-			size = other.size;
-			virtualSize = other.virtualSize;
-			position = other.position;
-		}
-		*/
-		
 	};
 
 	struct FileDirectory {
@@ -101,7 +90,7 @@ namespace STORAGE {
 			files[spot].lock = false;
 			files[spot].size = 0;
 			files[spot].virtualSize = size;
-			memcpy(&files[spot].nameSize, &nameSize, sizeof(size_t));
+			memcpy(&files[spot].nameSize, &nameSize, sizeof(char));
 			memcpy(files[spot].name, name.c_str(), name.size());
 			memcpy(&files[spot].position, &location, sizeof(size_t));
 			return spot;
@@ -110,7 +99,7 @@ namespace STORAGE {
 		/*
 		 *  Statics
 		 */
-		static const size_t MINALLOCATION = 256;  // Pre-Allocate 256 bytes per file.
+		static const size_t MINALLOCATION = 1024;  // Pre-Allocate 1024 bytes per file.
 		static const unsigned int SIZE = 2 * sizeof(File) + sizeof(size_t) +
 			(FileMeta::SIZE * MAXFILES);
 	};

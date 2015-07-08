@@ -23,6 +23,8 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 
 
 STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
+	std::lock_guard<std::mutex> lk(dirLock);
+
 	logEvent(EVENT, "Creating file: " + fname);
 	size_t nameLen = fname.size();
 	if (nameLen > FileMeta::MAXNAMELEN) {
@@ -36,7 +38,7 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 	logEvent(EVENT, "New file at position " + os.str());
 
 	// Get the position of the new file
-	size_t pos = dir->files[index].position;
+	size_t &pos = dir->files[index].position;
 
 	// Raw write a placeholder.  The actual file contents will be written later.
 	file.raw_write(FilePlaceholder, sizeof(FilePlaceholder), pos);
@@ -44,7 +46,7 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 	// Update lookup table
 	lookup[fname] = index;
 
-#ifdef LOGDEBUGGING
+#if EXTRATESTING
 	logEvent(EVENT, "Verifying file placeholder");
 	// Some testing to make sure we are writing the correct stuff
 	char *test = file.raw_read(pos, sizeof(FilePlaceholder));
@@ -61,16 +63,18 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 }
 
 STORAGE::File STORAGE::Filesystem::select(std::string fname) {
-	std::lock_guard<std::mutex> lk(dirLock);
+	std::unique_lock<std::mutex> lk(dirLock);
+	size_t fileExists = lookup.count(fname);
 
-	std::map<std::string, File>::iterator it;
 	STORAGE::File file;
 
 	// Check if the file exists.
-	if ((it = lookup.find(fname)) != lookup.end()) {
+	if (fileExists) {
 		logEvent(EVENT, "File " + fname + " exists");
 		file = lookup[fname];
+		lk.unlock();
 	} else {
+		lk.unlock();
 		// File doesn't exist.  Create it.
 		file = createNewFile(fname);
 	}
@@ -85,7 +89,7 @@ void STORAGE::Filesystem::lock(File file, LockType type) {
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread " << id << " is locking " << file;
-	logEvent(EVENT, os.str());
+	logEvent(THREAD, os.str());
 
 	FileMeta &meta = dir->files[file];
 	// Wait until the file is available (not locked)
@@ -105,7 +109,7 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread " << id << " is unlocking " << file;
-	logEvent(EVENT, os.str());
+	logEvent(THREAD, os.str());
 
 	FileMeta &meta = dir->files[file];
 	// Wait until the file is actually locked and the current thread is the owner of the lock
@@ -123,6 +127,10 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 	}
 	lk.unlock();
 	meta.cond.notify_one();
+
+	std::ostringstream os2;
+	os2 << "Thread " << id << " unlocked " << file;
+	logEvent(THREAD, os2.str());
 }
 
 void STORAGE::Filesystem::shutdown(int code) {
@@ -142,8 +150,8 @@ void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	pos += sizeof(size_t);
 
 	for (int i = 0; i < MAXFILES; ++i) {
-		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].nameSize), sizeof(size_t));
-		pos += sizeof(size_t);
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].nameSize), sizeof(char));
+		pos += sizeof(char);
 		memcpy(buffer + pos, fd->files[i].name, FileMeta::MAXNAMELEN);
 		pos += FileMeta::MAXNAMELEN;
 		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].size), sizeof(size_t));
@@ -173,8 +181,8 @@ STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 	pos += sizeof(size_t);
 
 	for (size_t i = 0; i < directory->numFiles; ++i) {
-		memcpy(&directory->files[i].nameSize, buffer + pos, sizeof(size_t));
-		pos += sizeof(size_t);
+		memcpy(&directory->files[i].nameSize, buffer + pos, sizeof(char));
+		pos += sizeof(char);
 		memcpy(directory->files[i].name, buffer + pos, FileMeta::MAXNAMELEN);
 		pos += FileMeta::MAXNAMELEN;
 		memcpy(&directory->files[i].size, buffer + pos, sizeof(size_t));
@@ -209,8 +217,8 @@ size_t STORAGE::Writer::tell() {
 }
 
 void STORAGE::Writer::seek(off_t pos, StartLocation start) {
-	size_t loc = fs->dir->files[file].position;
-	size_t len = fs->dir->files[file].size;
+	size_t &loc = fs->dir->files[file].position;
+	size_t &len = fs->dir->files[file].size;
 
 	if (start == BEGIN) {
 		if (pos > len || pos < 0) {
@@ -226,8 +234,8 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 }
 
 void STORAGE::Writer::write(const char *data, size_t size) {
-	size_t loc = fs->dir->files[file].position;
-	size_t virtualSize = fs->dir->files[file].virtualSize;
+	size_t &loc = fs->dir->files[file].position;
+	size_t &virtualSize = fs->dir->files[file].virtualSize;
 
 	// If there is not enough excess space available, we must create a new file for this write
 	// and release the current allocated space for new files.
@@ -250,8 +258,8 @@ size_t STORAGE::Reader::tell() {
 }
 
 void STORAGE::Reader::seek(off_t pos, StartLocation start) {
-	size_t loc = fs->dir->files[file].position;
-	size_t len = fs->dir->files[file].size;
+	size_t &loc = fs->dir->files[file].position;
+	size_t &len = fs->dir->files[file].size;
 
 	if (start == BEGIN) {
 		if (pos > len || pos < 0) {
@@ -268,7 +276,7 @@ void STORAGE::Reader::seek(off_t pos, StartLocation start) {
 }
 
 char *STORAGE::Reader::read() {
-	size_t size = fs->getSize(file);
+	size_t &size = fs->dir->files[file].size;
 	char *buffer = NULL;
 	try {
 		buffer = read(size);
@@ -282,8 +290,8 @@ char *STORAGE::Reader::read() {
 }
 
 char *STORAGE::Reader::read(size_t amt) {
-	size_t loc = fs->dir->files[file].position;
-	size_t size = fs->dir->files[file].size;
+	size_t &loc = fs->dir->files[file].position;
+	size_t &size = fs->dir->files[file].size;
 
 	// We don't want to be able to read beyond the last byte of the file.
 	if (position + amt > size) {

@@ -10,22 +10,26 @@
 #include <string>
 #include <mutex>
 
-#define LOGGING					// Enable logging
-#define LOGDEBUGGING			// Undefine this if you don't want the log to contain File/Function/Line of caller
-#define SHORTFILENAMES			// Enable short filenames
+#define EXTRATESTING	  0		// Perform and log verification tests
+#define THREADONLYLOGGING 0		// Only log thread events (lock and unlock)
+#define LOGGING			  0		// Enable logging
+#define LOGDEBUGGING	  0		// Undefine this if you don't want the log to contain File/Function/Line of caller
+#define SHORTFILENAMES	  0		// Enable short filenames
 
-#if defined(LOGDEBUGGING) && defined(SHORTFILENAMES)
+#if LOGDEBUGGING && SHORTFILENAMES
 #define FILE (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
 #else
 #define FILE __FILE__
 #endif
 
 static const char* LOGPATH = "eventlog.log";
+static const char* THREADLOGPATH = "thread.log";
 
 enum LogEventType {
 	ERROR,
 	WARNING,
-	EVENT
+	EVENT,
+	THREAD
 };
 
 static std::string LogEventTypeToString(LogEventType type) {
@@ -33,16 +37,27 @@ static std::string LogEventTypeToString(LogEventType type) {
 	case ERROR: return "ERROR";
 	case WARNING: return "WARNING";
 	case EVENT: return "EVENT";
+	case THREAD: return "THREAD";
 	}
 	return "UNKNOWN";
 }
 
-#ifdef LOGGING
+#if LOGGING
 static std::mutex printLock;
 static void logEvent(LogEventType type, std::string msg) {
 	std::lock_guard<std::mutex> lg(printLock);
 	struct tm timeinfo;
-	std::fstream out(LOGPATH, std::fstream::out | std::fstream::app);
+	std::string path;
+	if (type == THREAD) {
+		path = THREADLOGPATH;
+	} else {
+#if !THREADONLYLOGGING
+		path = LOGPATH;
+#else
+		return;
+#endif
+	}
+	std::fstream out(path, std::fstream::out | std::fstream::app);
 	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 	std::time_t now_c = std::chrono::system_clock::to_time_t(now);
 	localtime_s(&timeinfo, &now_c);
@@ -54,10 +69,10 @@ static void logEvent(LogEventType type, std::string msg) {
 	out.close();
 }
 #else
-#define logEvent(type, msg) {}
+#define logEvent(type, msg)
 #endif
 
-#if defined(LOGDEBUGGING) && defined(LOGGING)
+#if LOGDEBUGGING && LOGGING
 // class to capture the caller and print it.  
 class Reporter
 {

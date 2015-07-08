@@ -4,7 +4,6 @@
 void foo(STORAGE::Filesystem *f, std::string name) {
 	STORAGE::File file = f->select(name);
 	auto writer = f->getWriter(file);
-	auto reader = f->getReader(file);
 
 	f->lock(file, STORAGE::WRITE);
 
@@ -20,21 +19,26 @@ void foo(STORAGE::Filesystem *f, std::string name) {
 }
 
 int main() {
+	static int c;
+	using namespace std::literals;
 	STORAGE::Filesystem f("test.stash");
 
 	// Create 50 threads, concurrently write to 5 files.
 	std::thread threads[50];
-	srand((unsigned int)time(NULL));
-	for (int i = 0; i < 50; ++i) {
-		std::ostringstream os;
-		os << "MyFile" << rand() % 5;
-		threads[i] = std::thread(foo, &f, os.str());
-	}
-	
-	for (auto& th : threads) {
-		th.join();
-	}
+	for (int j = 0; j < 50000; ++j) {
+		srand((unsigned int)time(NULL));
+		for (int i = 0; i < 50; ++i) {
+			std::ostringstream os;
+			os << "MyFile" << rand();
+			threads[i] = std::thread(foo, &f, os.str());
+		}
+		
+		for (auto& th : threads) {
+			th.join();
+		}
 
+		std::cout << j << std::endl;
+	}
 	f.shutdown();
 	return 0;
 }
