@@ -102,6 +102,9 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code = SUCCESS) {
 
 	munmap(fs, mapSize);
 
+#if LOGGING
+	flushLog();
+#endif
 	return code;
 }
 
