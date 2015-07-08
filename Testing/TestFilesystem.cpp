@@ -26,10 +26,9 @@ int main() {
 	using namespace std::literals;
 	STORAGE::Filesystem f("test.stash");
 
-	// Create 50 threads, concurrently write to 5 files.
   std::vector<std::thread> threads;
-	//std::thread threads[50];
 	for (int j = 0; j < 50000; ++j) {
+
 		srand((unsigned int)time(NULL));
 		for (int i = 0; i < 50; ++i) {
 			std::ostringstream os;
@@ -40,6 +39,8 @@ int main() {
 		for (auto& th : threads) {
 			th.join();
 		}
+
+    threads.clear();
 
 		std::cout << j << std::endl;
 	}
