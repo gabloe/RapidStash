@@ -72,9 +72,11 @@ int main() {
 	std::chrono::duration<double> turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 	const double totalTime = turnaround.count();
 	double throughput = (Max * NumThreads) / totalTime;
-	std::cout << "Turnaround time: " << totalTime << " seconds" << std::endl;
-	std::cout << "Throughput: " << throughput << " writes per second" << std::endl;
-	std::getchar();
+	std::ostringstream os, os2;
+	os << "Turnaround time: " << totalTime << " seconds" << std::endl;
+	os2 << "Throughput: " << throughput << " writes per second" << std::endl;
+	logEvent(EVENT, os.str());
+	logEvent(EVENT, os2.str());
 
 #if VECTOR
 	threads.clear();
