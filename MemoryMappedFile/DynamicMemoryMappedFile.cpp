@@ -11,12 +11,10 @@ int ftruncate(int fd, size_t len) {
  * Constructor!
  */
 STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : backingFilename(fname) {
-	logEvent(EVENT, "Using backing file '" + std::string(fname, strlen(fname)) + "'");
 	// If the backing file does not exist, we need to create it
 	bool createInitial = false;
 
 	int fd;
-
 	if (!fileExists(backingFilename)) {
 		isNewFile = true;
 		fd = getFileDescriptor(backingFilename, true);
@@ -102,9 +100,9 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code = SUCCESS) {
 
 	munmap(fs, mapSize);
 
-#if LOGGING
-	flushLog();
-#endif
+	if (logOut.is_open()) {
+		logOut.close();
+	}
 	return code;
 }
 

@@ -9,13 +9,13 @@
 #include <chrono>
 #include <string>
 #include <mutex>
+#include <atomic>
 
 #define EXTRATESTING	  0			  // Perform and log verification tests
-#define THREADLOGGING	  1			  // Enable loging of thread events (lock and unlock)
+#define THREADLOGGING	  0			  // Enable loging of thread events (lock and unlock)
 #define LOGGING			  1			  // Enable logging
 #define LOGDEBUGGING	  0			  // Undefine this if you don't want the log to contain File/Function/Line of caller
 #define SHORTFILENAMES	  0			  // Enable short filenames
-#define BUFFERSIZE		  (2<<15) - 1 // Size of log buffer
 
 #if LOGDEBUGGING && SHORTFILENAMES
 #define FILE (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
@@ -24,8 +24,7 @@
 #endif
 
 static const char* LOGPATH = "eventlog.log";
-static size_t bufPos;
-static char logBuffer[BUFFERSIZE];
+static std::ofstream logOut;
 
 enum LogEventType {
 	ERROR,
@@ -47,35 +46,26 @@ static std::string LogEventTypeToString(LogEventType type) {
 #if LOGGING
 
 static std::mutex printLock;
-static void flushLog() {
-	std::fstream out(LOGPATH, std::fstream::out | std::fstream::app);
-	out << std::string(logBuffer, bufPos);
-	out.close();
-	bufPos = 0;
-}
 static void logEvent(LogEventType type, std::string msg) {
-	std::lock_guard<std::mutex> lg(printLock);
 	struct tm timeinfo;
 #if !THREADLOGGING
 	if (type == THREAD)
 		return;
 #endif
-	if (bufPos + msg.size() > BUFFERSIZE) {
-		flushLog();
-	} else {
-		std::ostringstream os;
-		std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
-		std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-		localtime_s(&timeinfo, &now_c);
+	std::lock_guard<std::mutex> lg(printLock);
+	std::ostringstream os;
+	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+	std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+	localtime_s(&timeinfo, &now_c);
 #if _MSC_VER == 1900
-		os << std::put_time(&timeinfo, "%F %T") << " : " << LogEventTypeToString(type) << " - " << msg << "\n";
+	os << std::put_time(&timeinfo, "%F %T") << " : " << LogEventTypeToString(type) << " - " << msg << "\n";
 #else
-		os << std::put_time(&timeinfo, "%Y-%m-%d %H:%M:%S") << " : " << LogEventTypeToString(type) << " - " << msg << "\n";
+	os << std::put_time(&timeinfo, "%Y-%m-%d %H:%M:%S") << " : " << LogEventTypeToString(type) << " - " << msg << "\n";
 #endif
-		size_t size = os.str().size();
-		memcpy(logBuffer + bufPos , os.str().c_str(), size);
-		bufPos += size;
+	if (!logOut.is_open()) {
+		logOut = std::ofstream(LOGPATH, std::fstream::app);
 	}
+	logOut << os.str();
 }
 #else
 #define logEvent(type, msg)

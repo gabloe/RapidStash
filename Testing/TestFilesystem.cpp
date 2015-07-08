@@ -44,7 +44,6 @@ void foo(STORAGE::Filesystem *f, int id) {
 }
 
 int main() {
-	using namespace std::literals;
 	STORAGE::Filesystem f("test.stash");
 #if VECTOR
   std::vector<std::thread> threads;
@@ -73,16 +72,14 @@ int main() {
 	const double totalTime = turnaround.count();
 	double throughput = (Max * NumThreads) / totalTime;
 	std::ostringstream os, os2;
-	os << "Turnaround time: " << totalTime << " seconds" << std::endl;
-	os2 << "Throughput: " << throughput << " writes per second" << std::endl;
+	os << "Turnaround time: " << totalTime << " seconds";
+	os2 << "Throughput: " << throughput << " writes per second";
 	logEvent(EVENT, os.str());
 	logEvent(EVENT, os2.str());
 
 #if VECTOR
 	threads.clear();
 #endif
-	
-	
 
 	f.shutdown();
 	return 0;
