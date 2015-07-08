@@ -1,4 +1,6 @@
 
+#include <vector>
+
 #include "Filesystem.h"
 #include "Logging.h"
 
@@ -25,13 +27,14 @@ int main() {
 	STORAGE::Filesystem f("test.stash");
 
 	// Create 50 threads, concurrently write to 5 files.
-	std::thread threads[50];
+  std::vector<std::thread> threads;
+	//std::thread threads[50];
 	for (int j = 0; j < 50000; ++j) {
 		srand((unsigned int)time(NULL));
 		for (int i = 0; i < 50; ++i) {
 			std::ostringstream os;
 			os << "MyFile" << rand();
-			threads[i] = std::thread(foo, &f, os.str());
+			threads.push_back(std::thread(foo, &f, os.str()));
 		}
 		
 		for (auto& th : threads) {
