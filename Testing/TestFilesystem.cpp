@@ -3,8 +3,6 @@
 #include "Filesystem.h"
 #include "Logging.h"
 
-#include <chrono>
-
 #define VECTOR 0
 
 #if VECTOR
@@ -55,8 +53,6 @@ int main() {
 #if !LOGGING
 	std::cout << "Working..." << std::endl;
 #endif
-	std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-
 	STORAGE::Filesystem f("test.stash");
 #if VECTOR
   std::vector<std::thread> threads;
@@ -76,10 +72,7 @@ int main() {
 		th.join();
 	}
 
-	std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-
-	std::chrono::duration<double> turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
-	const double totalTime = turnaround.count();
+	const double totalTime = f.getTurnaround();
 	double throughput = f.count(STORAGE::WRITES) / totalTime;
 	double bps = f.count(STORAGE::BYTES) / totalTime;
 	std::ostringstream os, os2;

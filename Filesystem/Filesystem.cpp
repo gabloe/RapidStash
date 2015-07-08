@@ -3,6 +3,7 @@
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	bytesWritten.store(0);
 	numWrites.store(0);
+	timeStarted.store(false);
 
 	// Set up file directory if the backing file is new.
 	if (file.isNew()) {
@@ -128,6 +129,12 @@ size_t STORAGE::Filesystem::count(CountType type) {
 	}
 }
 
+double STORAGE::Filesystem::getTurnaround() {
+	std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+	auto turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - startTime);
+	return turnaround.count();
+}
+
 void STORAGE::Filesystem::shutdown(int code) {
 	writeFileDirectory(dir); // Make sure that any changes to the directory are flushed to disk.
 	file.shutdown(code);
@@ -231,6 +238,11 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 void STORAGE::Writer::write(const char *data, size_t size) {
 	size_t &loc = fs->dir->files[file].position;
 	size_t &virtualSize = fs->dir->files[file].virtualSize;
+
+	if (!timeStarted.load()) {
+		startTime = std::chrono::high_resolution_clock::now();
+		timeStarted.store(true);
+	}
 
 	bytesWritten += size;
 	numWrites++;

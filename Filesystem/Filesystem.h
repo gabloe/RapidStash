@@ -48,6 +48,8 @@ namespace STORAGE {
 	static std::thread::id nobody;  // Reset for lock ownership
 	static std::atomic<size_t> bytesWritten;
 	static std::atomic<size_t> numWrites;
+	static std::chrono::high_resolution_clock::time_point startTime;
+	static std::atomic<bool> timeStarted;
 
 	// A file is just am index into an internal array.
 	typedef unsigned short File;
@@ -134,6 +136,7 @@ namespace STORAGE {
 		Writer getWriter(File);
 		Reader getReader(File);
 		size_t count(CountType);
+		double getTurnaround();
 
 	private:
 		DynamicMemoryMappedFile file;
