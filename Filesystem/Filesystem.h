@@ -5,6 +5,8 @@
 #include "DynamicMemoryMappedFile.h"
 #include "Logging.h"
 
+#include <cstring>
+
 #include <limits>
 #include <map>
 #include <queue>
@@ -41,6 +43,7 @@ Filesystem structure:
 namespace STORAGE {
 	class Filesystem;
 	class Writer;
+  class Reader;
 
 	static std::thread::id nobody;  // Reset for lock ownership
 
