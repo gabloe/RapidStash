@@ -13,8 +13,8 @@
 #include <array>
 #endif
 
-const int Max = 50000;
-const int NumThreads = 50;
+const int Max = (2 << 15) - 1;
+const int NumThreads = 4;
 
 void foo(STORAGE::Filesystem *f, int id) {
 	for (int i = id; i < Max; i += NumThreads) {
@@ -80,8 +80,8 @@ int main() {
 
 	std::chrono::duration<double> turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
 	const double totalTime = turnaround.count();
-	double throughput = (Max * NumThreads) / totalTime;
-	double bps = f.count() / totalTime;
+	double throughput = f.count(STORAGE::WRITES) / totalTime;
+	double bps = f.count(STORAGE::BYTES) / totalTime;
 	std::ostringstream os, os2;
 	os << "Turnaround time: " << totalTime << " s";
 	if (throughput > 1000) {

@@ -47,6 +47,7 @@ namespace STORAGE {
 
 	static std::thread::id nobody;  // Reset for lock ownership
 	static std::atomic<size_t> bytesWritten;
+	static std::atomic<size_t> numWrites;
 
 	// A file is just am index into an internal array.
 	typedef unsigned short File;
@@ -113,6 +114,11 @@ namespace STORAGE {
 		WRITE
 	};
 
+	enum CountType {
+		BYTES,
+		WRITES
+	};
+
 	class Filesystem {
 	public:
 		friend class Writer;
@@ -127,7 +133,7 @@ namespace STORAGE {
 		size_t getSize(File);
 		Writer getWriter(File);
 		Reader getReader(File);
-		size_t count();
+		size_t count(CountType);
 
 	private:
 		DynamicMemoryMappedFile file;

@@ -2,6 +2,7 @@
 
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	bytesWritten.store(0);
+	numWrites.store(0);
 
 	// Set up file directory if the backing file is new.
 	if (file.isNew()) {
@@ -117,8 +118,14 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 	logEvent(THREAD, os2.str());
 }
 
-size_t STORAGE::Filesystem::count() {
-	return bytesWritten.load();
+size_t STORAGE::Filesystem::count(CountType type) {
+	if (type == BYTES) {
+		return bytesWritten.load();
+	} else if (type == WRITES) {
+		return numWrites.load();
+	} else {
+		return 0;
+	}
 }
 
 void STORAGE::Filesystem::shutdown(int code) {
@@ -225,7 +232,8 @@ void STORAGE::Writer::write(const char *data, size_t size) {
 	size_t &loc = fs->dir->files[file].position;
 	size_t &virtualSize = fs->dir->files[file].virtualSize;
 
-	bytesWritten.store(bytesWritten.load() + size);
+	bytesWritten += size;
+	numWrites++;
 
 	// If there is not enough excess space available, we must create a new file for this write
 	// and release the current allocated space for new files.
