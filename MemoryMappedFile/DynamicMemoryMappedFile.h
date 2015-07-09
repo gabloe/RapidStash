@@ -22,22 +22,23 @@ int ftruncate(int, size_t);
 #include <condition_variable>
 #include <atomic>
 
-#define GROWTH_FACTOR 1.25 // Grow 25% larger than requested
+#define GROWTH_FACTOR 1.25 // Grow 25% larger than requested.  This helps to prevent excessive growth
 static short VERSION = 1;
 static char SANITY[] = { 0x0,0x0,0xd,0x1,0xe,0x5,0x0,0xf,0xd,0x0,0x0,0xd,0xa,0xd,0x5 };
 #define HEADER_SIZE sizeof(VERSION) + sizeof(SANITY) + sizeof(size_t)
 
+// Condition variables and mutex to block threads if a growth is in progress
 static std::mutex growthLock;
 static std::condition_variable cvWrite;
 static std::condition_variable cvRead;
 static bool growing;
 
+// Limit the overall size of the file to 4GB for compatibility reasons
+static const size_t maxSize = (size_t)(std::pow(2, 32) - 1);
+
 namespace STORAGE {
 	class DynamicMemoryMappedFile {
-		// Constants for how the filesystem will grow.  Should grow to some page boundary.
-		// TODO: maybe get the actual page size from the system?
-		static const int PAGE_SIZE = 4096; // 4k pages
-		static const size_t INITIAL_PAGES = 32; // Start with 32 pages
+		static const int INITIAL_SIZE = 4096; // Initial size of the map is 4k
 
 	public:
 		// Constructors

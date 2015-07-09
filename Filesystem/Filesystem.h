@@ -7,6 +7,7 @@
 
 #include <cstring>
 
+#include <array>
 #include <limits>
 #include <map>
 #include <queue>
@@ -54,17 +55,17 @@ namespace STORAGE {
 	// A file is just am index into an internal array.
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
 
-	static const unsigned short MAXFILES = (2 << 15) - 1; // std::numeric_limits<unsigned short>::max();
+	static const unsigned short MAXFILES = std::numeric_limits<unsigned short>::max();
 
 	// Data to initially write to file location.  Used to reclaim files that get created but never written.
 	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd };
 
 	struct FileMeta {
 		static const byte MAXNAMELEN = 32;
-		static const size_t SIZE = sizeof(size_t) + MAXNAMELEN + (2 * sizeof(FileSize)) + sizeof(FilePosition);
+		static const size_t SIZE = /*sizeof(size_t) + */MAXNAMELEN + (2 * sizeof(FileSize)) + sizeof(FilePosition);
 		
 		// Stored data
-		size_t nameSize;					// The number of characters for the file name
+		//size_t nameSize;					// The number of characters for the file name
 		char name[MAXNAMELEN];			// The file name
 		FileSize size;					// The number of bytes actually used for the file
 		FileSize virtualSize;			// The total number of bytes allocated for the file
@@ -76,7 +77,7 @@ namespace STORAGE {
 		int writers;					// The number of threads writing
 		int readers;					// The number of threads reading
 
-		FileMeta() : nameSize(0), size(0), virtualSize(0), position(0), lock(false), readers(0), writers(0) {}
+		FileMeta() : /*nameSize(0),*/ size(0), virtualSize(0), position(0), lock(false), readers(0), writers(0) {}
 	};
 
 	struct FileDirectory {
@@ -84,22 +85,20 @@ namespace STORAGE {
 		File numFiles;
 		File firstFree;
 		FilePosition nextRawSpot;
-		FileMeta files[MAXFILES];
+		std::array<FileMeta, MAXFILES> files;
 
 		// Methods
 		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {}
-		File insert(std::string name, FileSize size = MINALLOCATION) {
+		File insert(const char *name, FileSize size = MINALLOCATION) {
 			numFiles++;
 			File spot = firstFree;
 			FilePosition location = nextRawSpot;
 			nextRawSpot += size;
 			firstFree++;
-			size_t nameSize = name.size();
 			files[spot].lock = false;
 			files[spot].size = 0;
 			files[spot].virtualSize = size;
-			memcpy(&files[spot].nameSize, &nameSize, sizeof(size_t));
-			memcpy(files[spot].name, name.c_str(), name.size());
+			memcpy(files[spot].name, name, strlen(name));
 			memcpy(&files[spot].position, &location, sizeof(FilePosition));
 			return spot;
 		}

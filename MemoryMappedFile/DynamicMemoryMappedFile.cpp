@@ -20,7 +20,7 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 		isNewFile = true;
 		fd = getFileDescriptor(backingFilename, true);
 		createInitial = true;
-		mapSize = INITIAL_PAGES * PAGE_SIZE;
+		mapSize = INITIAL_SIZE;
 	} else {
 		// Read file size from the host filesystem
 		isNewFile = false;
@@ -117,7 +117,6 @@ checkspace:
 	std::unique_lock<std::mutex> lk(growthLock);
 	if (end > mapSize - 1) {
 		cvWrite.wait(lk, [] {return !growing; });
-		growing = true;
 		grow(end - mapSize - 1);
 		lk.unlock();
 		cvWrite.notify_one();
@@ -197,7 +196,8 @@ bool STORAGE::DynamicMemoryMappedFile::sanityCheck(const char * header) {
 }
 
 void STORAGE::DynamicMemoryMappedFile::grow(size_t amt) {	// Increase the size by some amount
-	static const size_t maxSize = (size_t)pow(2, 31) - 1;
+	growing = true;
+
 	size_t oldMapSize = mapSize;
 	size_t test = (size_t)std::ceil((oldMapSize + amt) * GROWTH_FACTOR);
 	mapSize = test > maxSize ? maxSize : test;
@@ -217,5 +217,6 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t amt) {	// Increase the size b
 		logEvent(ERROR, "Could not remap backing file after growing");
 		shutdown(FAILURE);
 	}
+
 	growing = false;
 }

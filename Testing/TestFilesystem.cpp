@@ -78,7 +78,7 @@ int main() {
 	std::ostringstream os, os2;
 	os << "Turnaround time: " << totalTime << " s";
 	if (throughput > 1000) {
-		os2 << "Throughput: " << throughput/1000 << " thousand writes per second. (" << bps/1024 << " kbytes per second)";
+		os2 << "Throughput: " << throughput / 1000 << " thousand writes per second. (" << bps / 1024 << " kbytes per second)";
 	} else {
 		os2 << "Throughput: " << throughput << " writes per second. (" << bps << " bytes per second)";
 	}
