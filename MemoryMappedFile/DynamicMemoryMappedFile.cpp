@@ -13,6 +13,7 @@ int ftruncate(int fd, size_t len) {
 STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : backingFilename(fname) {
 	// If the backing file does not exist, we need to create it
 	bool createInitial = false;
+	growing = false;
 
 	int fd;
 	if (!fileExists(backingFilename)) {
@@ -88,7 +89,7 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
  * Public Methods
  */
 
-int STORAGE::DynamicMemoryMappedFile::shutdown(const int code = SUCCESS) {
+int STORAGE::DynamicMemoryMappedFile::shutdown(const int code) {
 	std::stringstream codeStr;
 	codeStr << code;
 	logEvent(EVENT, "Shutting down with code " + codeStr.str());
@@ -107,21 +108,25 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code = SUCCESS) {
 }
 
 int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, size_t pos) {
-	// We are writing to the file.  It is not new anymore!
-	if (isNewFile) {
-		isNewFile = false;
-	}
-
+	using namespace std::literals;
 	// If we are trying to write beyond the end of the file, we must grow.
 	size_t start = pos + HEADER_SIZE;
 	size_t end = start + len;
 
-	// TODO: If a growth happens, we cannot have threads trying to read/write.  This will cause undefined behavior
+checkspace:
+	std::unique_lock<std::mutex> lk(growthLock);
 	if (end > mapSize - 1) {
+		cvWrite.wait(lk, [] {return !growing; });
+		growing = true;
 		grow(end - mapSize - 1);
+		lk.unlock();
+		cvWrite.notify_one();
+		goto checkspace;
+	} else {
+		lk.unlock();
+		// If the space is available we can write immediately.
+		memcpy(fs + start, data, len);
 	}
-
-	memcpy(fs + start, data, len);
 	return 0;
 }
 
@@ -135,8 +140,15 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 		shutdown(FAILURE);
 	}
 
-	char *data = (char *)malloc(len);
+	char *data;
+	// We cannot read when we are growing.  This prevents out of bound reads.
+	std::unique_lock<std::mutex> lk(growthLock);
+	cvRead.wait(lk, [] {return !growing; });
+	lk.unlock();
+	cvRead.notify_one();
+	data = (char *)malloc(len);
 	memcpy(data, fs + start, len);
+
 	return data;
 }
 
@@ -144,7 +156,7 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
  * Private Methods
  */
 
-int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool create = true) {
+int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool create) {
 	int fd;
 	int err;
 	if (create) {
@@ -163,9 +175,10 @@ int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool 
 
 void STORAGE::DynamicMemoryMappedFile::writeHeader() {
 	logEvent(EVENT, "Updating file header");
+	size_t msize = mapSize;
 	memcpy(fs, SANITY, sizeof(SANITY));
 	memcpy(fs + sizeof(SANITY), reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
-	memcpy(fs + sizeof(SANITY) + sizeof(VERSION), reinterpret_cast<char*>(&mapSize), sizeof(mapSize));
+	memcpy(fs + sizeof(SANITY) + sizeof(VERSION), reinterpret_cast<char*>(&msize), sizeof(msize));
 	msync(fs, HEADER_SIZE, MS_SYNC);
 }
 
@@ -185,20 +198,24 @@ bool STORAGE::DynamicMemoryMappedFile::sanityCheck(const char * header) {
 
 void STORAGE::DynamicMemoryMappedFile::grow(size_t amt) {	// Increase the size by some amount
 	static const size_t maxSize = (size_t)pow(2, 31) - 1;
-	mapSize = (size_t)ceil((mapSize + amt) * GROWTH_FACTOR) > maxSize ? maxSize : (size_t)ceil((mapSize + amt) * GROWTH_FACTOR);
+	size_t oldMapSize = mapSize;
+	size_t test = (size_t)std::ceil((oldMapSize + amt) * GROWTH_FACTOR);
+	mapSize = test > maxSize ? maxSize : test;
 
 #if EXTRATESTING
 	std::ostringstream os;
 	os << mapSize;
 	logEvent(EVENT, "Growing filesystem to " + os.str());
 #endif
+
 	int fd = getFileDescriptor(backingFilename);
 	ftruncate(fd, mapSize);
-	fs = (char*)mmap(fs, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	_close(fd);
 	if (fs == MAP_FAILED) {
 		// Uhoh...
 		logEvent(ERROR, "Could not remap backing file after growing");
 		shutdown(FAILURE);
 	}
+	growing = false;
 }

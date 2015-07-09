@@ -26,20 +26,17 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 }
 
 
-STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
+File STORAGE::Filesystem::createNewFile(std::string fname) {
 	logEvent(EVENT, "Creating file: " + fname);
-	size_t nameLen = fname.size();
-	if (nameLen > FileMeta::MAXNAMELEN) {
-		nameLen = FileMeta::MAXNAMELEN;
+	if (fname.size() > FileMeta::MAXNAMELEN) {
+		fname = std::string(fname, FileMeta::MAXNAMELEN);
 	}
 
 	// Construct the file object.
 	File index = dir->insert(fname);
-	std::ostringstream os;
-	os << index;
 
 	// Get the position of the new file
-	size_t &pos = dir->files[index].position;
+	FilePosition &pos = dir->files[index].position;
 
 	// Raw write a placeholder.  The actual file contents will be written later.
 	file.raw_write(FilePlaceholder, sizeof(FilePlaceholder), pos);
@@ -50,11 +47,11 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 	return index;
 }
 
-STORAGE::File STORAGE::Filesystem::select(std::string fname) {
+File STORAGE::Filesystem::select(std::string fname) {
 	std::lock_guard<std::mutex> lk(dirLock);
 
 	size_t fileExists = lookup.count(fname);
-	STORAGE::File file;
+	File file;
 
 	// Check if the file exists.
 	if (fileExists) {
@@ -132,25 +129,25 @@ void STORAGE::Filesystem::shutdown(int code) {
 void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	logEvent(EVENT, "Writing file directory");
 	char *buffer = (char*)malloc(FileDirectory::SIZE);
-	size_t pos = 0;
+	FilePosition pos = 0;
 	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->numFiles), sizeof(File));
 	pos += sizeof(File);
 	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->firstFree), sizeof(File));
 	pos += sizeof(File);
-	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->nextRawSpot), sizeof(size_t));
-	pos += sizeof(size_t);
+	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->nextRawSpot), sizeof(FilePosition));
+	pos += sizeof(FilePosition);
 
 	for (int i = 0; i < dir->numFiles; ++i) {
-		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].nameSize), sizeof(char));
-		pos += sizeof(char);
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].nameSize), sizeof(size_t));
+		pos += sizeof(size_t);
 		memcpy(buffer + pos, fd->files[i].name, FileMeta::MAXNAMELEN);
 		pos += FileMeta::MAXNAMELEN;
-		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].size), sizeof(size_t));
-		pos += sizeof(size_t);
-		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].virtualSize), sizeof(size_t));
-		pos += sizeof(size_t);
-		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].position), sizeof(size_t));
-		pos += sizeof(size_t);
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].size), sizeof(FileSize));
+		pos += sizeof(FileSize);
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].virtualSize), sizeof(FileSize));
+		pos += sizeof(FileSize);
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].position), sizeof(FilePosition));
+		pos += sizeof(FilePosition);
 	}
 
 	file.raw_write(buffer, FileDirectory::SIZE, 0);
@@ -162,26 +159,26 @@ STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 	logEvent(EVENT, "Reading file directory");
 	char *buffer = file.raw_read(0, FileDirectory::SIZE);
 	FileDirectory *directory = new FileDirectory();
-	size_t pos = 0;
+	FilePosition pos = 0;
 
 	memcpy(&directory->numFiles, buffer + pos, sizeof(File));
 	pos += sizeof(File);
 	memcpy(&directory->firstFree, buffer + pos, sizeof(File));
 	pos += sizeof(File);
-	memcpy(&directory->nextRawSpot, buffer + pos, sizeof(size_t));
-	pos += sizeof(size_t);
+	memcpy(&directory->nextRawSpot, buffer + pos, sizeof(FilePosition));
+	pos += sizeof(FilePosition);
 
-	for (size_t i = 0; i < directory->numFiles; ++i) {
-		memcpy(&directory->files[i].nameSize, buffer + pos, sizeof(char));
-		pos += sizeof(char);
+	for (FileIndex i = 0; i < directory->numFiles; ++i) {
+		memcpy(&directory->files[i].nameSize, buffer + pos, sizeof(size_t));
+		pos += sizeof(size_t);
 		memcpy(directory->files[i].name, buffer + pos, FileMeta::MAXNAMELEN);
 		pos += FileMeta::MAXNAMELEN;
-		memcpy(&directory->files[i].size, buffer + pos, sizeof(size_t));
-		pos += sizeof(size_t);
-		memcpy(&directory->files[i].virtualSize, buffer + pos, sizeof(size_t));
-		pos += sizeof(size_t);
-		memcpy(&directory->files[i].position, buffer + pos, sizeof(size_t));
-		pos += sizeof(size_t);
+		memcpy(&directory->files[i].size, buffer + pos, sizeof(FileSize));
+		pos += sizeof(FileSize);
+		memcpy(&directory->files[i].virtualSize, buffer + pos, sizeof(FileSize));
+		pos += sizeof(FileSize);
+		memcpy(&directory->files[i].position, buffer + pos, sizeof(FilePosition));
+		pos += sizeof(FilePosition);
 	}
 
 	free(buffer);
@@ -196,20 +193,20 @@ STORAGE::Reader STORAGE::Filesystem::getReader(File f) {
 	return STORAGE::Reader(this, f);
 }
 
-size_t STORAGE::Filesystem::getSize(File f) {
+FileSize STORAGE::Filesystem::getSize(File f) {
 	return dir->files[f].size;
 }
 
 /*
  *  File writer utility class
  */
-size_t STORAGE::Writer::tell() {
+FilePosition STORAGE::Writer::tell() {
 	return position;
 }
 
 void STORAGE::Writer::seek(off_t pos, StartLocation start) {
-	size_t &loc = fs->dir->files[file].position;
-	size_t &len = fs->dir->files[file].size;
+	FilePosition &loc = fs->dir->files[file].position;
+	FileSize &len = fs->dir->files[file].size;
 
 	if (start == BEGIN) {
 		if (pos > len || pos < 0) {
@@ -224,9 +221,9 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 	}
 }
 
-void STORAGE::Writer::write(const char *data, size_t size) {
-	size_t &loc = fs->dir->files[file].position;
-	size_t &virtualSize = fs->dir->files[file].virtualSize;
+void STORAGE::Writer::write(const char *data, FileSize size) {
+	FilePosition &loc = fs->dir->files[file].position;
+	FileSize &virtualSize = fs->dir->files[file].virtualSize;
 
 	if (!timeStarted.load()) {
 		startTime = std::chrono::high_resolution_clock::now();
@@ -238,7 +235,7 @@ void STORAGE::Writer::write(const char *data, size_t size) {
 
 	// If there is not enough excess space available, we must create a new file for this write
 	// and release the current allocated space for new files.
-	if (position + size > virtualSize) {
+	if (size >= virtualSize - 1) {
 		// TODO: this...
 	}
 
@@ -252,13 +249,13 @@ void STORAGE::Writer::write(const char *data, size_t size) {
 /*
 *  File reader utility class
 */
-size_t STORAGE::Reader::tell() {
+FilePosition STORAGE::Reader::tell() {
 	return position;
 }
 
 void STORAGE::Reader::seek(off_t pos, StartLocation start) {
-	size_t &loc = fs->dir->files[file].position;
-	size_t &len = fs->dir->files[file].size;
+	FilePosition &loc = fs->dir->files[file].position;
+	FileSize &len = fs->dir->files[file].size;
 
 	if (start == BEGIN) {
 		if (pos > len || pos < 0) {
@@ -275,7 +272,7 @@ void STORAGE::Reader::seek(off_t pos, StartLocation start) {
 }
 
 char *STORAGE::Reader::read() {
-	size_t &size = fs->dir->files[file].size;
+	FileSize &size = fs->dir->files[file].size;
 	char *buffer = NULL;
 	try {
 		buffer = read(size);
@@ -288,9 +285,9 @@ char *STORAGE::Reader::read() {
 	return buffer;
 }
 
-char *STORAGE::Reader::read(size_t amt) {
-	size_t &loc = fs->dir->files[file].position;
-	size_t &size = fs->dir->files[file].size;
+char *STORAGE::Reader::read(FileSize amt) {
+	FilePosition &loc = fs->dir->files[file].position;
+	FileSize &size = fs->dir->files[file].size;
 
 	// We don't want to be able to read beyond the last byte of the file.
 	if (position + amt > size) {

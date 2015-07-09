@@ -19,12 +19,18 @@ int ftruncate(int, size_t);
 #include <iostream>
 #include <string>
 #include <mutex>
+#include <condition_variable>
 #include <atomic>
 
-#define GROWTH_FACTOR 2
+#define GROWTH_FACTOR 1.25 // Grow 25% larger than requested
 static short VERSION = 1;
 static char SANITY[] = { 0x0,0x0,0xd,0x1,0xe,0x5,0x0,0xf,0xd,0x0,0x0,0xd,0xa,0xd,0x5 };
 #define HEADER_SIZE sizeof(VERSION) + sizeof(SANITY) + sizeof(size_t)
+
+static std::mutex growthLock;
+static std::condition_variable cvWrite;
+static std::condition_variable cvRead;
+static bool growing;
 
 namespace STORAGE {
 	class DynamicMemoryMappedFile {
@@ -41,7 +47,7 @@ namespace STORAGE {
 		/*
 		 *Cleanup!
 		 */
-		int shutdown(const int);
+		int shutdown(const int = SUCCESS);
 
 		/*
 		 * Write raw data to the filesystem.
@@ -52,11 +58,6 @@ namespace STORAGE {
 		 * Read raw data from the filesystem.
 		 */
 		char *raw_read(size_t, size_t, size_t = HEADER_SIZE);
-
-		/*
-		 *  Returns a count of the total number of written bytes so far.
-		 */
-		std::atomic<size_t> &count();
 
 		bool isNew() {
 			return isNewFile;
@@ -76,7 +77,7 @@ namespace STORAGE {
 		/*
 		 *Private methods
 		 */
-		int getFileDescriptor(const char*, bool);
+		int getFileDescriptor(const char*, bool = true);
 		void writeHeader();
 		char *readHeader();
 		bool sanityCheck(const char*);
