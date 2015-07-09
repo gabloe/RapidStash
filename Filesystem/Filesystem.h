@@ -55,17 +55,16 @@ namespace STORAGE {
 	// A file is just am index into an internal array.
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
 
-	static const unsigned short MAXFILES = std::numeric_limits<unsigned short>::max();
+	static const size_t MAXFILES = 2 << 18; // 0.5MB file at 44 bytes per directory entry ~23MB file directory
 
 	// Data to initially write to file location.  Used to reclaim files that get created but never written.
 	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd };
 
 	struct FileMeta {
-		static const byte MAXNAMELEN = 32;
-		static const size_t SIZE = /*sizeof(size_t) + */MAXNAMELEN + (2 * sizeof(FileSize)) + sizeof(FilePosition);
+		static const char MAXNAMELEN = 32;
+		static const size_t SIZE = MAXNAMELEN + (2 * sizeof(FileSize)) + sizeof(FilePosition);
 		
 		// Stored data
-		//size_t nameSize;					// The number of characters for the file name
 		char name[MAXNAMELEN];			// The file name
 		FileSize size;					// The number of bytes actually used for the file
 		FileSize virtualSize;			// The total number of bytes allocated for the file
@@ -77,7 +76,7 @@ namespace STORAGE {
 		int writers;					// The number of threads writing
 		int readers;					// The number of threads reading
 
-		FileMeta() : /*nameSize(0),*/ size(0), virtualSize(0), position(0), lock(false), readers(0), writers(0) {}
+		FileMeta() : size(0), virtualSize(0), position(0), lock(false), readers(0), writers(0) {}
 	};
 
 	struct FileDirectory {
@@ -85,10 +84,17 @@ namespace STORAGE {
 		File numFiles;
 		File firstFree;
 		FilePosition nextRawSpot;
-		std::array<FileMeta, MAXFILES> files;
+		FileMeta *files;
 
 		// Methods
-		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {}
+		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {
+			files = new FileMeta[MAXFILES];
+		}
+		
+		~FileDirectory() {
+			delete files;
+		}
+
 		File insert(const char *name, FileSize size = MINALLOCATION) {
 			numFiles++;
 			File spot = firstFree;
@@ -106,7 +112,7 @@ namespace STORAGE {
 		/*
 		 *  Statics
 		 */
-		static const FileSize MINALLOCATION = 256;  // Pre-Allocate 256 bytes per file.
+		static const FileSize MINALLOCATION = 128;  // Pre-Allocate 128 bytes per file.
 		static const size_t SIZE = (2 * sizeof(File)) + sizeof(FilePosition) + (FileMeta::SIZE * MAXFILES);
 	};
 

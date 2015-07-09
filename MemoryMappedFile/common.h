@@ -7,11 +7,11 @@
 #define SUCCESS 0
 #define FAILURE 1
 
-typedef unsigned short File;
+// Typedefs to make testing easier
+typedef unsigned int File;
 typedef size_t FileSize;
 typedef size_t FilePosition;
-typedef unsigned short FileIndex;
-typedef char byte;
+typedef unsigned int FileIndex;
 
 bool fileExists(const char*);
 #endif

@@ -19,7 +19,7 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 
 		// Populate lookup table
 		for (File i = 0; i < dir->numFiles; ++i) {
-			std::string name(dir->files[i].name/*, dir->files[i].nameSize*/);
+			std::string name(dir->files[i].name);
 			lookup[name] = i;
 		}
 	}
@@ -137,9 +137,7 @@ void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->nextRawSpot), sizeof(FilePosition));
 	pos += sizeof(FilePosition);
 
-	for (int i = 0; i < dir->numFiles; ++i) {
-		/*memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].nameSize), sizeof(size_t));
-		pos += sizeof(size_t);*/
+	for (FileIndex i = 0; i < dir->numFiles; ++i) {
 		memcpy(buffer + pos, fd->files[i].name, FileMeta::MAXNAMELEN);
 		pos += FileMeta::MAXNAMELEN;
 		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].size), sizeof(FileSize));
@@ -169,8 +167,6 @@ STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 	pos += sizeof(FilePosition);
 
 	for (FileIndex i = 0; i < directory->numFiles; ++i) {
-		/*memcpy(&directory->files[i].nameSize, buffer + pos, sizeof(size_t));
-		pos += sizeof(size_t);*/
 		memcpy(directory->files[i].name, buffer + pos, FileMeta::MAXNAMELEN);
 		pos += FileMeta::MAXNAMELEN;
 		memcpy(&directory->files[i].size, buffer + pos, sizeof(FileSize));
