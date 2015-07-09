@@ -51,9 +51,9 @@ STORAGE::File STORAGE::Filesystem::createNewFile(std::string fname) {
 }
 
 STORAGE::File STORAGE::Filesystem::select(std::string fname) {
-	std::unique_lock<std::mutex> lk(dirLock);
-	size_t fileExists = lookup.count(fname);
+	std::lock_guard<std::mutex> lk(dirLock);
 
+	size_t fileExists = lookup.count(fname);
 	STORAGE::File file;
 
 	// Check if the file exists.
@@ -69,47 +69,36 @@ STORAGE::File STORAGE::Filesystem::select(std::string fname) {
 }
 
 void STORAGE::Filesystem::lock(File file, LockType type) {
-	// We are locking the file so that we can read and/or write
-	std::unique_lock<std::mutex> lk(dirLock);
-
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread " << id << " is locking " << file;
 	logEvent(THREAD, os.str());
 
+	// We are locking the file so that we can read and/or write
 	FileMeta &meta = dir->files[file];
-	// Wait until the file is available (not locked)
-	meta.cond.wait(lk, [&meta] {return !meta.lock; });
-	meta.lock = true;
-	meta.tid = id;
-	if (type == READ) {
-		meta.readers++;
-	} else if (type == WRITE) {
-		meta.writers++;
+	std::unique_lock<std::mutex> lk(dirLock);
+	{
+		// Wait until the file is available (not locked)
+		meta.cond.wait(lk, [&meta] {return !meta.lock; });
+		meta.lock = true;
+		meta.tid = id;
 	}
+	lk.unlock();
 }
 
 void STORAGE::Filesystem::unlock(File file, LockType type) {
-	std::unique_lock<std::mutex> lk(dirLock);
-
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread " << id << " is unlocking " << file;
 	logEvent(THREAD, os.str());
 
 	FileMeta &meta = dir->files[file];
-	// Wait until the file is actually locked and the current thread is the owner of the lock
-	meta.cond.wait(lk, [&meta, &id] {return meta.lock && meta.tid == id; });
-	meta.lock = false;
-	meta.tid = nobody;
-
-	// TODO: Currently we give exlusive lock to a thread (both read and write).  But, if there are only readers
-	// then we may not need to lock.  Use the readers and writers field to logically detemine when to trigger
-	// the condition variable.
-	if (type == READ) {
-		meta.readers--;
-	} else if (type == WRITE) {
-		meta.writers--;
+	std::unique_lock<std::mutex> lk(dirLock);
+	{
+		// Wait until the file is actually locked and the current thread is the owner of the lock
+		meta.cond.wait(lk, [&meta, &id] {return meta.lock && meta.tid == id; });
+		meta.lock = false;
+		meta.tid = nobody;
 	}
 	lk.unlock();
 	meta.cond.notify_one();
