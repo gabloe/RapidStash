@@ -18,6 +18,7 @@ int ftruncate(int, size_t);
 #include "common.h"
 #include <iostream>
 #include <string>
+#include <cstring>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
