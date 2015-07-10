@@ -1,3 +1,10 @@
+/*
+ *  Filesystem.h
+ *  Enables a basic Filesystem to be managed on top of a managed memory mapped file
+ *
+ *  Written by: Gabriel Loewen
+ */
+
 #ifndef _FILESYSTEM_H_
 #define _FILESYSTEM_H_
 #pragma once
@@ -46,11 +53,15 @@ namespace STORAGE {
 	class Writer;
     class Reader;
 
-	static std::thread::id nobody;									// Reset for lock ownership
-	static std::atomic<size_t> bytesWritten;						// Count of number of bytes written
-	static std::atomic<size_t> numWrites;							// Count of number of write operations
-	static std::chrono::high_resolution_clock::time_point startTime;// Start time of first write
-	static std::atomic<bool> timeStarted;							// Trigger for start time calculation
+	static std::thread::id nobody;											// Reset for lock ownership
+	static std::atomic<size_t> bytesWritten;								// Count of number of bytes written
+	static std::atomic<size_t> numWrites;									// Count of number of write operations
+	static std::atomic<size_t> bytesRead;									// Count of number of bytes read
+	static std::atomic<size_t> numReads;									// Count of number of read operations
+	static std::chrono::high_resolution_clock::time_point startWriteTime;	// Start time of first write
+	static std::chrono::high_resolution_clock::time_point startReadTime;	// Start time of first read
+	static std::atomic<bool> writeTimeStarted;								// Trigger for start time calculation
+	static std::atomic<bool> readTimeStarted;								// Trigger for start time calculation
 
 	// A file is just am index into an internal array.
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
@@ -117,8 +128,10 @@ namespace STORAGE {
 	};
 
 	enum CountType {
-		BYTES,
-		WRITES
+		BYTESWRITTEN,
+		WRITES,
+		BYTESREAD,
+		READS
 	};
 
 	class Filesystem {
@@ -136,7 +149,8 @@ namespace STORAGE {
 		Writer getWriter(File);
 		Reader getReader(File);
 		size_t count(CountType);
-		double getTurnaround();
+		double getWriteTurnaround();
+		double getReadTurnaround();
 
 	private:
 		DynamicMemoryMappedFile file;

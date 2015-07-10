@@ -1,9 +1,20 @@
+/*
+*  Filesystem.cpp
+*  Enables a basic Filesystem to be managed on top of a managed memory mapped file
+*
+*  Written by: Gabriel Loewen
+*/
+
 #include "Filesystem.h"
 
+// Constructor
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	bytesWritten.store(0);
+	bytesRead.store(0);
 	numWrites.store(0);
-	timeStarted.store(false);
+	numReads.store(0);
+	writeTimeStarted.store(false);
+	readTimeStarted.store(false);
 
 	// Set up file directory if the backing file is new.
 	if (file.isNew()) {
@@ -26,6 +37,7 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	}
 }
 
+// Read the header for a particular file from disk
 STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
 	FilePosition &pos = dir->files[f].position;
 	STORAGE::FileHeader header;
@@ -42,6 +54,7 @@ STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
 	return header;
 }
 
+// Write a files header to disk
 void STORAGE::Filesystem::writeHeader(File f) {
 	FilePosition &pos = dir->files[f].position;
 	FileHeader &header = dir->headers[f];
@@ -61,6 +74,7 @@ void STORAGE::Filesystem::writeHeader(File f) {
 	free(buffer);
 }
 
+// Create a new file
 File STORAGE::Filesystem::createNewFile(std::string fname) {
 	logEvent(EVENT, "Creating file: " + fname);
 	if (fname.size() > FileHeader::MAXNAMELEN) {
@@ -70,6 +84,7 @@ File STORAGE::Filesystem::createNewFile(std::string fname) {
 	return insert(fname.c_str());
 }
 
+// Insert or update a files metadata and write the header to disk
 File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, bool reuse) {
 	std::lock_guard<std::mutex> lk(insertGuard);
 
@@ -98,6 +113,7 @@ File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, 
 	return spot;
 }
 
+// Select a file from the filesystem to use
 File STORAGE::Filesystem::select(std::string fname) {
 	std::lock_guard<std::mutex> lk(dirLock);
 
@@ -116,6 +132,7 @@ File STORAGE::Filesystem::select(std::string fname) {
 	return file;
 }
 
+// Lock the file for either read or write
 void STORAGE::Filesystem::lock(File file, LockType type) {
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
@@ -127,9 +144,23 @@ void STORAGE::Filesystem::lock(File file, LockType type) {
 	std::unique_lock<std::mutex> lk(dirLock);
 	{
 		// Wait until the file is available (not locked)
-		meta.cond.wait(lk, [&meta] {return !meta.lock; });
-		meta.lock = true;
-		meta.tid = id;
+		meta.cond.wait(lk, [&meta, &type] 
+			{
+				// If we want write (exclusive) access, there must not be any unlocked readers
+				bool writeRequest = !meta.lock && type == WRITE && meta.readers == 0;
+
+				// If we want read (non-exclusive) access, there must not be any writers
+				bool readRequest = !meta.lock && type == READ && meta.writers == 0;
+
+				return writeRequest || readRequest;
+			});
+		if (type == WRITE) {
+			meta.lock = true;
+			meta.tid = id;
+			meta.writers++;
+		} else {
+			meta.readers++;
+		}
 	}
 	lk.unlock();
 }
@@ -144,9 +175,19 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 	std::unique_lock<std::mutex> lk(dirLock);
 	{
 		// Wait until the file is actually locked and the current thread is the owner of the lock
-		meta.cond.wait(lk, [&meta, &id] {return meta.lock && meta.tid == id; });
-		meta.lock = false;
-		meta.tid = nobody;
+		meta.cond.wait(lk, [&meta, &id, &type] 
+			{
+				bool writeRequest = type == WRITE && meta.lock && meta.tid == id;
+				bool readRequest = type == READ;
+				return writeRequest || readRequest; 
+			});
+		if (type == WRITE) {
+			meta.lock = false;
+			meta.tid = nobody;
+			meta.writers--;
+		} else if (type == READ) {
+			meta.readers--;
+		}
 	}
 	lk.unlock();
 	meta.cond.notify_one();
@@ -157,18 +198,28 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 }
 
 size_t STORAGE::Filesystem::count(CountType type) {
-	if (type == BYTES) {
+	if (type == BYTESWRITTEN) {
 		return bytesWritten.load();
 	} else if (type == WRITES) {
 		return numWrites.load();
+	} else if (type == BYTESREAD) {
+		return bytesRead.load();
+	} else if (type == READS) {
+		return numReads.load();
 	} else {
 		return 0;
 	}
 }
 
-double STORAGE::Filesystem::getTurnaround() {
+double STORAGE::Filesystem::getWriteTurnaround() {
 	std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-	auto turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - startTime);
+	auto turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - startWriteTime);
+	return turnaround.count();
+}
+
+double STORAGE::Filesystem::getReadTurnaround() {
+	std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
+	auto turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - startReadTime);
 	return turnaround.count();
 }
 
@@ -265,9 +316,9 @@ void STORAGE::Writer::write(const char *data, FileSize size) {
 	FileSize &virtualSize = fs->dir->headers[file].virtualSize;
 	FileSize oldSize = fs->dir->headers[file].size;
 
-	if (!timeStarted.load()) {
-		startTime = std::chrono::high_resolution_clock::now();
-		timeStarted.store(true);
+	if (!writeTimeStarted.load()) {
+		startWriteTime = std::chrono::high_resolution_clock::now();
+		writeTimeStarted.store(true);
 	}
 
 	bytesWritten += size;
@@ -324,6 +375,12 @@ void STORAGE::Reader::seek(off_t pos, StartLocation start) {
 
 char *STORAGE::Reader::read() {
 	FileSize &size = fs->dir->headers[file].size;
+
+	if (!readTimeStarted.load()) {
+		startReadTime = std::chrono::high_resolution_clock::now();
+		readTimeStarted.store(true);
+	}
+
 	char *buffer = NULL;
 	try {
 		buffer = read(size);
@@ -348,6 +405,9 @@ char *STORAGE::Reader::read(FileSize amt) {
 	if (position + amt > size) {
 		throw ReadOutOfBoundsException();
 	}
+
+	bytesRead += amt;
+	numReads++;
 
 	char *data = fs->file.raw_read(loc + position + FileHeader::SIZE, amt);
 

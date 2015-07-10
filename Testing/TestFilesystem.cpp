@@ -11,10 +11,35 @@
 #include <array>
 #endif
 
-const int Max = (2 << 10) - 1;
-const int NumThreads = 4;
+const int Max = (2 << 17) - 1;
+const int NumThreads = 12;
 
-static std::string data("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890");
+static std::string data("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+
+void bar(STORAGE::Filesystem *f, int id) {
+	File file;
+	std::ostringstream n;
+
+	for (int i = id; i < Max; i += NumThreads) {
+		n << i;
+		std::string filename("MyFile" + n.str());
+
+		// Create random file
+		file = f->select(filename);
+		auto reader = f->getReader(file);
+
+		// Write lots of data
+		f->lock(file, STORAGE::READ);
+		{
+			char *data = reader.read();
+			//std::string stuff(data, f->getHeader(file).size);
+			//std::cout << stuff << std::endl;
+			free(data);
+		}
+		f->unlock(file, STORAGE::READ);
+		n.str(std::string());
+	}
+}
 
 void foo(STORAGE::Filesystem *f, int id) {
 	File file;
@@ -31,7 +56,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 		// Write lots of data
 		f->lock(file, STORAGE::WRITE);
 		{
-			writer.write(data.c_str(), data.size());
+			writer.write((data + n.str()).c_str(), data.size() + n.str().size());
 #if EXTRATESTING
 			auto reader = f->getReader(file);
 			char *buf = reader.read();
@@ -56,40 +81,71 @@ int main() {
 #endif
 	STORAGE::Filesystem f("test.stash");
 #if VECTOR
-  std::vector<std::thread> threads;
+  std::vector<std::thread> writers;
+  std::vector<std::thread> readers;
 #else
-	std::array<std::thread,NumThreads> threads;
+	std::array<std::thread,NumThreads> writers;
+	std::array<std::thread, NumThreads> readers;
 #endif
 
 	for (int i = 0; i < NumThreads; ++i) {
 #if VECTOR
-		threads.push_back(std::thread(foo, &f, i));
+		writers.push_back(std::thread(foo, &f, i));
 #else
-		threads[i] = std::thread(foo, &f, i);
+		writers[i] = std::thread(foo, &f, i);
 #endif
 	}
 
-	for (auto& th : threads) {
+	for (auto& th : writers) {
 		th.join();
 	}
 
-	const double totalTime = f.getTurnaround();
-	size_t numWrites = f.count(STORAGE::WRITES);
-	size_t numBytes = f.count(STORAGE::BYTES);
+	const double totalWriteTime = f.getWriteTurnaround();
 
-	double throughput =  numWrites / totalTime;
-	double bps = numBytes / totalTime;
-	std::ostringstream os, os2, os3;
-	os << "Turnaround time: " << totalTime << " s";
-	if (throughput > 1000) {
-		os2 << "Throughput: " << throughput / 1000 << " thousand writes per second. (" << bps / 1024 << " kbytes per second)";
-	} else {
-		os2 << "Throughput: " << throughput << " writes per second. (" << bps << " bytes per second)";
+	for (int i = 0; i < NumThreads; ++i) {
+#if VECTOR
+		readers.push_back(std::thread(bar, &f, i));
+#else
+		readers[i] = std::thread(bar, &f, i);
+#endif
 	}
-	os3 << "Wrote " << numBytes << " bytes in " << numWrites << " write operations";
+
+	for (auto& th : readers) {
+		th.join();
+	}
+
+	const double totalReadTime = f.getReadTurnaround();
+	size_t numWrites = f.count(STORAGE::WRITES);
+	size_t numBytesWrote = f.count(STORAGE::BYTESWRITTEN);
+	size_t numReads = f.count(STORAGE::READS);
+	size_t numBytesRead = f.count(STORAGE::BYTESREAD);
+
+	double writeThroughput =  numWrites / totalWriteTime;
+	double bpsWrote = numBytesWrote / totalWriteTime;
+	double readThroughput = numReads / totalReadTime;
+	double bpsRead = numBytesRead / totalReadTime;
+
+	std::ostringstream os, os2, os3, os4, os5;
+	os << "Turnaround time for writes: " << totalWriteTime << " s\n";
+	os << "Turnaround time for reads: " << totalReadTime << " s";
+	if (writeThroughput > 1000) {
+		os2 << "Throughput: " << writeThroughput / 1000 << " thousand writes per second. (" << bpsWrote / 1024 << " kbytes per second)";
+	} else {
+		os2 << "Throughput: " << writeThroughput << " writes per second. (" << bpsWrote << " bytes per second)";
+	}
+	os3 << "Wrote " << numBytesWrote << " bytes in " << numWrites << " write operations";
+
+	if (readThroughput > 1000) {
+		os4 << "Throughput: " << readThroughput / 1000 << " thousand reads per second. (" << bpsRead / 1024 << " kbytes per second)";
+	}
+	else {
+		os4 << "Throughput: " << readThroughput << " reads per second. (" << bpsRead << " bytes per second)";
+	}
+	os5 << "Read " << numBytesRead << " bytes in " << numReads << " read operations";
 
 #if VECTOR
-	threads.clear();
+	writers.clear();
+	readers.clear();
 #endif
 
 	f.shutdown();
@@ -98,10 +154,16 @@ int main() {
 	logEvent(EVENT, os.str());
 	logEvent(EVENT, os2.str());
 #else
-	std::cout << "\nStatistics:" << std::endl;
+	std::cout << "\nStatistics:\n" << std::endl;
 	std::cout << os.str() << std::endl;
+
+	std::cout << "\n--- Writes ---\n";
 	std::cout << os2.str() << std::endl;
 	std::cout << os3.str() << std::endl;
+
+	std::cout << "\n--- Reads ---\n";
+	std::cout << os4.str() << std::endl;
+	std::cout << os5.str() << std::endl;
 	std::cout << "\nPress enter to continue..." << std::endl;
 	(void)std::getchar();
 #endif
