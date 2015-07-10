@@ -11,7 +11,7 @@
 #include <array>
 #endif
 
-const int Max = (2 << 15) - 1;
+const int Max = (2 << 18) - 1;
 const int NumThreads = 4;
 
 static std::string data("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRST");
