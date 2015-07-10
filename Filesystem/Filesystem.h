@@ -55,28 +55,33 @@ namespace STORAGE {
 	// A file is just am index into an internal array.
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
 
-	static const size_t MAXFILES = 2 << 18; // 0.5MB file at 44 bytes per directory entry ~23MB file directory
-
-	// Data to initially write to file location.  Used to reclaim files that get created but never written.
-	static const char FilePlaceholder[] = { 0xd,0xe,0xa,0xd };
+	static const size_t MAXFILES = 2 << 18; // 0.5MB entries at 8 bytes per entry == 4MB file directory
 
 	struct FileMeta {
-		static const char MAXNAMELEN = 32;
-		static const size_t SIZE = MAXNAMELEN + (2 * sizeof(FileSize)) + sizeof(FilePosition);
+		static const size_t SIZE = sizeof(FilePosition);
 		
 		// Stored data
-		char name[MAXNAMELEN];			// The file name
-		FileSize size;					// The number of bytes actually used for the file
-		FileSize virtualSize;			// The total number of bytes allocated for the file
 		FilePosition position;			// The position of the file on disk
 		//------------------------------------------------------------------------------------
+
 		bool lock;						// The exclusive lock status of the file
 		std::condition_variable cond;	// Condition variable to wait on
 		std::thread::id tid;			// The owner of the lock
 		int writers;					// The number of threads writing
 		int readers;					// The number of threads reading
 
-		FileMeta() : size(0), virtualSize(0), position(0), lock(false), readers(0), writers(0) {}
+		FileMeta() : position(0), lock(false), readers(0), writers(0) {}
+	};
+
+	struct FileHeader {
+		// Statics
+		static const int MAXNAMELEN = 32;	
+		static const size_t SIZE = MAXNAMELEN + 2 * sizeof(FileSize);
+
+		// Data
+		char name[MAXNAMELEN];				// The file name
+		FileSize size;						// The number of bytes actually used for the file
+		FileSize virtualSize;				// The total number of bytes allocated for the file
 	};
 
 	struct FileDirectory {
@@ -85,34 +90,23 @@ namespace STORAGE {
 		File firstFree;
 		FilePosition nextRawSpot;
 		FileMeta *files;
+		FileHeader *headers;
 
 		// Methods
 		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {
 			files = new FileMeta[MAXFILES];
+			headers = new FileHeader[MAXFILES];
 		}
 		
 		~FileDirectory() {
 			delete files;
-		}
-
-		File insert(const char *name, FileSize size = MINALLOCATION) {
-			numFiles++;
-			File spot = firstFree;
-			FilePosition location = nextRawSpot;
-			nextRawSpot += size;
-			firstFree++;
-			files[spot].lock = false;
-			files[spot].size = 0;
-			files[spot].virtualSize = size;
-			memcpy(files[spot].name, name, strlen(name));
-			memcpy(&files[spot].position, &location, sizeof(FilePosition));
-			return spot;
+			delete headers;
 		}
 
 		/*
 		 *  Statics
 		 */
-		static const FileSize MINALLOCATION = 128;  // Pre-Allocate 128 bytes per file.
+		static const FileSize MINALLOCATION = 128;  // Pre-Allocate 128 bytes per file (plus header size)
 		static const size_t SIZE = (2 * sizeof(File)) + sizeof(FilePosition) + (FileMeta::SIZE * MAXFILES);
 	};
 
@@ -137,7 +131,7 @@ namespace STORAGE {
 		File createNewFile(std::string);
 		void lock(File, LockType);
 		void unlock(File, LockType);
-		FileSize getSize(File);
+		FileHeader getHeader(File);
 		Writer getWriter(File);
 		Reader getReader(File);
 		size_t count(CountType);
@@ -148,6 +142,9 @@ namespace STORAGE {
 		void writeFileDirectory(FileDirectory *);
 		FileDirectory *readFileDirectory();
 		FileDirectory *dir;
+		File insert(const char *, FileSize = FileDirectory::MINALLOCATION);
+		FileHeader readHeader(File);
+		void writeHeader(FileHeader, File);
 
 		// For quick lookups, map filenames to spot in meta table.
 		std::map<std::string, File> lookup;
@@ -164,7 +161,9 @@ namespace STORAGE {
 
 	class Reader {
 	public:
-		Reader(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
+		Reader(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {
+			header = fs->getHeader(file);
+		}
 		void seek(off_t, StartLocation);
 		char *read(FileSize);
 		char *read();
@@ -174,12 +173,15 @@ namespace STORAGE {
 		Filesystem *fs;
 		File file;
 		FilePosition position;
+		FileHeader header;
 	};
 
 
 	class Writer {
 	public:
-		Writer(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
+		Writer(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {
+			header = fs->getHeader(file);
+		}
 		void seek(off_t, StartLocation);
 		void write(const char *, FileSize);
 		FilePosition tell();
@@ -188,6 +190,7 @@ namespace STORAGE {
 		Filesystem *fs;
 		File file;
 		FilePosition position;
+		FileHeader header;
 	};
 
 	class SeekOutOfBoundsException : public std::exception {

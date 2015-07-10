@@ -19,32 +19,75 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 
 		// Populate lookup table
 		for (File i = 0; i < dir->numFiles; ++i) {
-			std::string name(dir->files[i].name);
+			dir->headers[i] = readHeader(i);
+			std::string name(dir->headers[i].name);
 			lookup[name] = i;
 		}
 	}
 }
 
+STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
+	FilePosition &pos = dir->files[f].position;
+	STORAGE::FileHeader header;
+	char *buffer = file.raw_read(pos, FileHeader::SIZE);
+
+	size_t offset = 0;
+	memcpy(header.name, buffer, FileHeader::MAXNAMELEN);
+	offset += FileHeader::MAXNAMELEN;
+	memcpy(&header.size, buffer + offset, sizeof(FileSize));
+	offset += sizeof(FileSize);
+	memcpy(&header.virtualSize, buffer + offset, sizeof(FileSize));
+	free(buffer);
+
+	return header;
+}
+
+void STORAGE::Filesystem::writeHeader(FileHeader header, File f) {
+	FilePosition pos = dir->files[f].position;
+	char *buffer = (char*)malloc(FileHeader::SIZE);
+	size_t offset = 0;
+	memcpy(buffer + offset, header.name, FileHeader::MAXNAMELEN);
+	offset += FileHeader::MAXNAMELEN;
+	memcpy(buffer + offset, reinterpret_cast<char*>(&header.size), sizeof(FileSize));
+	offset += sizeof(FileSize);
+	memcpy(buffer + offset, reinterpret_cast<char*>(&header.virtualSize), sizeof(FileSize));
+	file.raw_write(buffer, FileHeader::SIZE, pos);
+	free(buffer);
+}
 
 File STORAGE::Filesystem::createNewFile(std::string fname) {
 	logEvent(EVENT, "Creating file: " + fname);
-	if (fname.size() > FileMeta::MAXNAMELEN) {
-		fname = std::string(fname, FileMeta::MAXNAMELEN);
+	if (fname.size() > FileHeader::MAXNAMELEN) {
+		fname = std::string(fname, FileHeader::MAXNAMELEN);
 	}
 
 	// Construct the file object.
-	File index = dir->insert(fname.c_str());
+	File index = insert(fname.c_str());
 
 	// Get the position of the new file
 	FilePosition &pos = dir->files[index].position;
-
-	// Raw write a placeholder.  The actual file contents will be written later.
-	file.raw_write(FilePlaceholder, sizeof(FilePlaceholder), pos);
 
 	// Update lookup table
 	lookup[fname] = index;
 
 	return index;
+}
+
+File STORAGE::Filesystem::insert(const char *name, FileSize size) {
+	dir->numFiles++;
+	File spot = dir->firstFree;
+	FilePosition location = dir->nextRawSpot;
+	dir->nextRawSpot += (FileHeader::SIZE + size);
+	dir->firstFree++;
+	dir->files[spot].lock = false;
+	memcpy(&dir->files[spot].position, &location, sizeof(FilePosition));
+
+	strcpy_s(dir->headers[spot].name, name);
+	dir->headers[spot].size = 0;
+	dir->headers[spot].virtualSize = size;
+	writeHeader(dir->headers[spot], spot);
+
+	return spot;
 }
 
 File STORAGE::Filesystem::select(std::string fname) {
@@ -138,12 +181,6 @@ void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	pos += sizeof(FilePosition);
 
 	for (FileIndex i = 0; i < dir->numFiles; ++i) {
-		memcpy(buffer + pos, fd->files[i].name, FileMeta::MAXNAMELEN);
-		pos += FileMeta::MAXNAMELEN;
-		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].size), sizeof(FileSize));
-		pos += sizeof(FileSize);
-		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].virtualSize), sizeof(FileSize));
-		pos += sizeof(FileSize);
 		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].position), sizeof(FilePosition));
 		pos += sizeof(FilePosition);
 	}
@@ -167,12 +204,6 @@ STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 	pos += sizeof(FilePosition);
 
 	for (FileIndex i = 0; i < directory->numFiles; ++i) {
-		memcpy(directory->files[i].name, buffer + pos, FileMeta::MAXNAMELEN);
-		pos += FileMeta::MAXNAMELEN;
-		memcpy(&directory->files[i].size, buffer + pos, sizeof(FileSize));
-		pos += sizeof(FileSize);
-		memcpy(&directory->files[i].virtualSize, buffer + pos, sizeof(FileSize));
-		pos += sizeof(FileSize);
 		memcpy(&directory->files[i].position, buffer + pos, sizeof(FilePosition));
 		pos += sizeof(FilePosition);
 	}
@@ -189,8 +220,8 @@ STORAGE::Reader STORAGE::Filesystem::getReader(File f) {
 	return STORAGE::Reader(this, f);
 }
 
-FileSize STORAGE::Filesystem::getSize(File f) {
-	return dir->files[f].size;
+STORAGE::FileHeader STORAGE::Filesystem::getHeader(File f) {
+	return dir->headers[f];
 }
 
 /*
@@ -202,7 +233,7 @@ FilePosition STORAGE::Writer::tell() {
 
 void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 	FilePosition &loc = fs->dir->files[file].position;
-	FileSize &len = fs->dir->files[file].size;
+	FileSize &len = fs->dir->headers[file].size;
 
 	if (start == BEGIN) {
 		if (pos > len || pos < 0) {
@@ -219,7 +250,7 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 
 void STORAGE::Writer::write(const char *data, FileSize size) {
 	FilePosition &loc = fs->dir->files[file].position;
-	FileSize &virtualSize = fs->dir->files[file].virtualSize;
+	FileSize &virtualSize = fs->dir->headers[file].virtualSize;
 
 	if (!timeStarted.load()) {
 		startTime = std::chrono::high_resolution_clock::now();
@@ -236,10 +267,13 @@ void STORAGE::Writer::write(const char *data, FileSize size) {
 	}
 
 	// Update metadata in directory
-	fs->dir->files[file].size = size;
+	if (size != header.size) {
+		fs->dir->headers[file].size = size;
+		fs->writeHeader(fs->dir->headers[file], file);
+	}
 
 	// Write the data
-	fs->file.raw_write(data, size, loc + position);
+	fs->file.raw_write(data, size, loc + position + FileHeader::SIZE);
 }
 
 /*
@@ -251,7 +285,7 @@ FilePosition STORAGE::Reader::tell() {
 
 void STORAGE::Reader::seek(off_t pos, StartLocation start) {
 	FilePosition &loc = fs->dir->files[file].position;
-	FileSize &len = fs->dir->files[file].size;
+	FileSize &len = fs->dir->headers[file].size;
 
 	if (start == BEGIN) {
 		if (pos > len || pos < 0) {
@@ -268,7 +302,7 @@ void STORAGE::Reader::seek(off_t pos, StartLocation start) {
 }
 
 char *STORAGE::Reader::read() {
-	FileSize &size = fs->dir->files[file].size;
+	FileSize &size = fs->dir->headers[file].size;
 	char *buffer = NULL;
 	try {
 		buffer = read(size);
@@ -283,14 +317,14 @@ char *STORAGE::Reader::read() {
 
 char *STORAGE::Reader::read(FileSize amt) {
 	FilePosition &loc = fs->dir->files[file].position;
-	FileSize &size = fs->dir->files[file].size;
+	FileSize &size = fs->dir->headers[file].size;
 
 	// We don't want to be able to read beyond the last byte of the file.
 	if (position + amt > size) {
 		throw ReadOutOfBoundsException();
 	}
 
-	char *data = fs->file.raw_read(loc + position, amt);
+	char *data = fs->file.raw_read(loc + position + FileHeader::SIZE, amt);
 
 	return data;
 }

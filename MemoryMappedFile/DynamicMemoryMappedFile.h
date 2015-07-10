@@ -22,7 +22,7 @@ int ftruncate(int, size_t);
 #include <condition_variable>
 #include <atomic>
 
-#define GROWTH_FACTOR 1.25 // Grow 25% larger than requested.  This helps to prevent excessive growth
+#define GROWTH_FACTOR 2.0 // Grow larger than requested.  This helps to prevent excessive growth
 static short VERSION = 1;
 static char SANITY[] = { 0x0,0x0,0xd,0x1,0xe,0x5,0x0,0xf,0xd,0x0,0x0,0xd,0xa,0xd,0x5 };
 #define HEADER_SIZE sizeof(VERSION) + sizeof(SANITY) + sizeof(size_t)
