@@ -42,8 +42,10 @@ STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
 	return header;
 }
 
-void STORAGE::Filesystem::writeHeader(FileHeader header, File f) {
-	FilePosition pos = dir->files[f].position;
+void STORAGE::Filesystem::writeHeader(File f) {
+	FilePosition &pos = dir->files[f].position;
+	FileHeader &header = dir->headers[f];
+
 	char *buffer = (char*)malloc(FileHeader::SIZE);
 	if (buffer == NULL) {
 		logEvent(ERROR, "Memory allocation failed.");
@@ -65,31 +67,33 @@ File STORAGE::Filesystem::createNewFile(std::string fname) {
 		fname = std::string(fname, FileHeader::MAXNAMELEN);
 	}
 
-	// Construct the file object.
-	File index = insert(fname.c_str());
-
-	// Get the position of the new file
-	FilePosition &pos = dir->files[index].position;
-
-	// Update lookup table
-	lookup[fname] = index;
-
-	return index;
+	return insert(fname.c_str());
 }
 
-File STORAGE::Filesystem::insert(const char *name, FileSize size) {
-	dir->numFiles++;
-	File spot = dir->firstFree;
-	FilePosition location = dir->nextRawSpot;
-	dir->nextRawSpot += (FileHeader::SIZE + size);
-	dir->firstFree++;
-	dir->files[spot].lock = false;
-	memcpy(&dir->files[spot].position, &location, sizeof(FilePosition));
+File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, bool reuse) {
+	std::lock_guard<std::mutex> lk(insertGuard);
 
-	strcpy_s(dir->headers[spot].name, name);
-	dir->headers[spot].size = 0;
+	File spot = oldFile;
+	FileSize totalSize = FileHeader::SIZE + size;
+
+	// If the file is new
+	if (!reuse) {
+		spot = dir->firstFree++;
+		dir->numFiles++;
+		dir->files[spot].lock = false;
+		dir->headers[spot].size = 0;
+	} else {
+		dir->headers[spot].size = size;
+	}
+
+	dir->files[spot].position = dir->nextRawSpot;
+	dir->nextRawSpot += totalSize;
+
+	memcpy(dir->headers[spot].name, name, FileHeader::MAXNAMELEN);
 	dir->headers[spot].virtualSize = size;
-	writeHeader(dir->headers[spot], spot);
+	writeHeader(spot);
+
+	lookup[std::string(name)] = spot;
 
 	return spot;
 }
@@ -257,8 +261,9 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 }
 
 void STORAGE::Writer::write(const char *data, FileSize size) {
-	FilePosition &loc = fs->dir->files[file].position;
+	FilePosition loc = fs->dir->files[file].position;
 	FileSize &virtualSize = fs->dir->headers[file].virtualSize;
+	FileSize oldSize = fs->dir->headers[file].size;
 
 	if (!timeStarted.load()) {
 		startTime = std::chrono::high_resolution_clock::now();
@@ -269,19 +274,27 @@ void STORAGE::Writer::write(const char *data, FileSize size) {
 	numWrites++;
 
 	// If there is not enough excess space available, we must create a new file for this write
-	// and release the current allocated space for new files.
-	if (size >= virtualSize - 1) {
-		// TODO: this...
-	}
+	// This generates garbage that may eventually need to be cleaned up.
+	if (size > virtualSize) {
+		fs->insert(header.name, size, file, true);
+		FilePosition newLoc = fs->dir->files[file].position;
+		// If we are writing somewhere in the middle of the file, we have to copy over some of the beginning
+		// of the old file.
+		if (position > 0) {
+			char *chunk = fs->file.raw_read(loc + FileHeader::SIZE, position);
+			fs->file.raw_write(chunk, position, newLoc + FileHeader::SIZE);
+		}
 
-	// Update metadata in directory
-	if (size != header.size) {
+		// Write the rest of the data
+		fs->file.raw_write(data, size, newLoc + position + FileHeader::SIZE);
+	} else {
+		// Update metadata in directory
 		fs->dir->headers[file].size = size;
-		fs->writeHeader(fs->dir->headers[file], file);
-	}
+		fs->writeHeader(file);
 
-	// Write the data
-	fs->file.raw_write(data, size, loc + position + FileHeader::SIZE);
+		// Write the data
+		fs->file.raw_write(data, size, loc + position + FileHeader::SIZE);
+	}
 }
 
 /*

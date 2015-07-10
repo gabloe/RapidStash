@@ -54,8 +54,9 @@ namespace STORAGE {
 
 	// A file is just am index into an internal array.
 	static std::mutex dirLock; // If we modify anything in the file directory, it must be atomic.
+	static std::mutex insertGuard;
 
-	static const size_t MAXFILES = 2 << 18; // 0.5MB entries at 8 bytes per entry == 4MB file directory
+	static const size_t MAXFILES = 2 << 19; // 1MB entries at 8 bytes per entry == 8MB file directory
 
 	struct FileMeta {
 		static const size_t SIZE = sizeof(FilePosition);
@@ -75,7 +76,7 @@ namespace STORAGE {
 
 	struct FileHeader {
 		// Statics
-		static const int MAXNAMELEN = 128;	// Allow for up to 128 character long names
+		static const int MAXNAMELEN = 32;	// Allow for up to 32 character long names
 		static const size_t SIZE = MAXNAMELEN + 2 * sizeof(FileSize);
 
 		// Data
@@ -142,9 +143,9 @@ namespace STORAGE {
 		void writeFileDirectory(FileDirectory *);
 		FileDirectory *readFileDirectory();
 		FileDirectory *dir;
-		File insert(const char *, FileSize = FileDirectory::MINALLOCATION);
+		File insert(const char *, FileSize = FileDirectory::MINALLOCATION, File = 0, bool = false);
 		FileHeader readHeader(File);
-		void writeHeader(FileHeader, File);
+		void writeHeader(File);
 
 		// For quick lookups, map filenames to spot in meta table.
 		std::map<std::string, File> lookup;

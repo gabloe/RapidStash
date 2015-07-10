@@ -8,10 +8,10 @@
 #define FAILURE 1
 
 // Typedefs to make testing easier
-typedef unsigned int File;
+typedef int File;
 typedef size_t FileSize;
 typedef size_t FilePosition;
-typedef unsigned int FileIndex;
+typedef int FileIndex;
 
 bool fileExists(const char*);
 #endif

@@ -11,21 +11,21 @@
 #include <array>
 #endif
 
-const int Max = (2 << 18) - 1;
+const int Max = (2 << 10) - 1;
 const int NumThreads = 4;
 
-static std::string data("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRST");
-static std::string filename("MyFile");
+static std::string data("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890");
 
 void foo(STORAGE::Filesystem *f, int id) {
 	File file;
-	std::ostringstream filename;
-	filename << "MyFile";
+	std::ostringstream n;
 
 	for (int i = id; i < Max; i += NumThreads) {
-		filename << i;
+		n << i;
+		std::string filename("MyFile" + n.str());
+
 		// Create random file
-		file = f->select(filename.str());
+		file = f->select(filename);
 		auto writer = f->getWriter(file);
 
 		// Write lots of data
@@ -37,15 +37,15 @@ void foo(STORAGE::Filesystem *f, int id) {
 			char *buf = reader.read();
 			std::string res(buf, f->getHeader(file).size);
 			if (data.compare(res) == 0) {
-				logEvent(EVENT, "Written data verified for file " + filename.str());
+				logEvent(EVENT, "Written data verified for file " + filename);
 			} else {
-				logEvent(ERROR, "Written data incorrect for file " + filename.str());
+				logEvent(ERROR, "Written data incorrect for file " + filename);
 				logEvent(ERROR, "Found '" + res + "', should be '" + data + "'");
 			}
 #endif
 		}
 		f->unlock(file, STORAGE::WRITE);
-		filename.str(std::string("MyFile"));
+		n.str(std::string());
 	}
 	return;
 }
