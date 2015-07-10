@@ -75,7 +75,7 @@ namespace STORAGE {
 
 	struct FileHeader {
 		// Statics
-		static const int MAXNAMELEN = 32;	
+		static const int MAXNAMELEN = 128;	// Allow for up to 128 character long names
 		static const size_t SIZE = MAXNAMELEN + 2 * sizeof(FileSize);
 
 		// Data
@@ -89,8 +89,8 @@ namespace STORAGE {
 		File numFiles;
 		File firstFree;
 		FilePosition nextRawSpot;
-		FileMeta *files;
-		FileHeader *headers;
+		FileMeta *files;			// The metadata consists of where the file is located and locking info
+		FileHeader *headers;		// The headers contain the filename and file size
 
 		// Methods
 		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {

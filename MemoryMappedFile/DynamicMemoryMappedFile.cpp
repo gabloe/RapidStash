@@ -139,14 +139,15 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 		shutdown(FAILURE);
 	}
 
-	char *data;
+	char *data = NULL;
 	// We cannot read when we are growing.  This prevents out of bound reads.
 	std::unique_lock<std::mutex> lk(growthLock);
 	cvRead.wait(lk, [] {return !growing; });
 	lk.unlock();
 	cvRead.notify_one();
 	data = (char *)malloc(len);
-	memcpy(data, fs + start, len);
+	if (data != NULL)
+		memcpy(data, fs + start, len);
 
 	return data;
 }

@@ -45,6 +45,10 @@ STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
 void STORAGE::Filesystem::writeHeader(FileHeader header, File f) {
 	FilePosition pos = dir->files[f].position;
 	char *buffer = (char*)malloc(FileHeader::SIZE);
+	if (buffer == NULL) {
+		logEvent(ERROR, "Memory allocation failed.");
+		return;
+	}
 	size_t offset = 0;
 	memcpy(buffer + offset, header.name, FileHeader::MAXNAMELEN);
 	offset += FileHeader::MAXNAMELEN;
@@ -172,6 +176,10 @@ void STORAGE::Filesystem::shutdown(int code) {
 void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	logEvent(EVENT, "Writing file directory");
 	char *buffer = (char*)malloc(FileDirectory::SIZE);
+	if (buffer == NULL) {
+		logEvent(ERROR, "Memory allocation failed.");
+		return;
+	}
 	FilePosition pos = 0;
 	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->numFiles), sizeof(File));
 	pos += sizeof(File);
@@ -310,6 +318,10 @@ char *STORAGE::Reader::read() {
 		logEvent(ERROR, "Read out of bounds");
 		// Generate bogus buffer
 		buffer = (char*)malloc(size);
+		if (buffer == NULL) {
+			logEvent(ERROR, "Memory allocation failed.");
+			return NULL;
+		}
 		memset(buffer, 0, size);
 	}
 	return buffer;
