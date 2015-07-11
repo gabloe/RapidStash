@@ -1,3 +1,10 @@
+/*
+*  Logging.h
+*  Supports logging of various events, warnings, and errors to a file.
+*
+*  Written by: Gabriel J. Loewen
+*/
+
 #ifndef _LOGGING_H_
 #define _LOGGING_H_
 #pragma once

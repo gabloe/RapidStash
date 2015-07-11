@@ -1,11 +1,26 @@
+/*
+*  DynamicMemoryMappedFile.cpp
+*  Wraps memory mapped file creation with dynamic growth.  Manages when to grow the underlying file and provides
+*  raw unmanaged read and write access.
+*
+*  Written by: Gabriel J. Loewen
+*/
+
 #include "DynamicMemoryMappedFile.h"
 #include "Logging.h"
 
+// Trying to support cross compatibility
 #if defined(_WIN32) || defined(_WIN64)
 int ftruncate(int fd, size_t len) {
 	return _chsize_s(fd, len);
 }
 #endif
+
+// Test for file existence
+bool fileExists(const char* fname) {
+	struct stat buffer;
+	return (stat(fname, &buffer) == 0);
+}
 
 /*
  * Constructor!

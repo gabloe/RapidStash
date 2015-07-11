@@ -3,7 +3,7 @@
 #include "Filesystem.h"
 #include "Logging.h"
 
-#define VECTOR 0
+#define VECTOR 1
 
 #if VECTOR
 #include <vector>

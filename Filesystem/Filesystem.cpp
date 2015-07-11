@@ -2,7 +2,7 @@
 *  Filesystem.cpp
 *  Enables a basic Filesystem to be managed on top of a managed memory mapped file
 *
-*  Written by: Gabriel Loewen
+*  Written by: Gabriel J. Loewen
 */
 
 #include "Filesystem.h"
@@ -39,7 +39,7 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 
 // Read the header for a particular file from disk
 STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
-	FilePosition &pos = dir->files[f].position;
+	FilePosition &pos = dir->files[f];
 	STORAGE::FileHeader header;
 	char *buffer = file.raw_read(pos, FileHeader::SIZE);
 
@@ -56,7 +56,7 @@ STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
 
 // Write a files header to disk
 void STORAGE::Filesystem::writeHeader(File f) {
-	FilePosition &pos = dir->files[f].position;
+	FilePosition &pos = dir->files[f];
 	FileHeader &header = dir->headers[f];
 
 	char *buffer = (char*)malloc(FileHeader::SIZE);
@@ -75,18 +75,18 @@ void STORAGE::Filesystem::writeHeader(File f) {
 }
 
 // Create a new file
-File STORAGE::Filesystem::createNewFile(std::string fname) {
+File STORAGE::Filesystem::createNewFile(std::string fname, size_t size) {
 	logEvent(EVENT, "Creating file: " + fname);
 	if (fname.size() > FileHeader::MAXNAMELEN) {
 		fname = std::string(fname, FileHeader::MAXNAMELEN);
 	}
 
-	return insert(fname.c_str());
+	return insert(fname.c_str(), size);
 }
 
 // Insert or update a files metadata and write the header to disk
 File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, bool reuse) {
-	std::lock_guard<std::mutex> lk(insertGuard);
+	std::lock_guard<std::mutex> lk(insertGuard); // Avoid potential data races here
 
 	File spot = oldFile;
 	FileSize totalSize = FileHeader::SIZE + size;
@@ -95,16 +95,16 @@ File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, 
 	if (!reuse) {
 		spot = dir->firstFree++;
 		dir->numFiles++;
-		dir->files[spot].lock = false;
+		dir->locks[spot].lock = false;
 		dir->headers[spot].size = 0;
 	} else {
 		dir->headers[spot].size = size;
 	}
 
-	dir->files[spot].position = dir->nextRawSpot;
+	dir->files[spot] = dir->nextRawSpot;
 	dir->nextRawSpot += totalSize;
 
-	memcpy(dir->headers[spot].name, name, FileHeader::MAXNAMELEN);
+	strcpy_s(dir->headers[spot].name, name);
 	dir->headers[spot].virtualSize = size;
 	writeHeader(spot);
 
@@ -113,11 +113,13 @@ File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, 
 	return spot;
 }
 
-// Select a file from the filesystem to use
-File STORAGE::Filesystem::select(std::string fname) {
+// Select a file from the filesystem to use.  Optionally, pass in the amount of space to be allocated
+// if the file needs to be created, otherwise the newly created file will be allocated with the default
+// size
+File STORAGE::Filesystem::select(std::string fname, size_t allocationSize) {
 	std::lock_guard<std::mutex> lk(dirLock);
 
-	size_t fileExists = lookup.count(fname);
+	bool fileExists = exists(fname);
 	File file;
 
 	// Check if the file exists.
@@ -126,7 +128,7 @@ File STORAGE::Filesystem::select(std::string fname) {
 		file = lookup[fname];
 	} else {
 		// File doesn't exist.  Create it.
-		file = createNewFile(fname);
+		file = createNewFile(fname, allocationSize);
 	}
 
 	return file;
@@ -140,26 +142,26 @@ void STORAGE::Filesystem::lock(File file, LockType type) {
 	logEvent(THREAD, os.str());
 
 	// We are locking the file so that we can read and/or write
-	FileMeta &meta = dir->files[file];
+	FileLock &fl = dir->locks[file];
 	std::unique_lock<std::mutex> lk(dirLock);
 	{
 		// Wait until the file is available (not locked)
-		meta.cond.wait(lk, [&meta, &type] 
+			fl.cond.wait(lk, [&fl, &type] 
 			{
 				// If we want write (exclusive) access, there must not be any unlocked readers
-				bool writeRequest = !meta.lock && type == WRITE && meta.readers == 0;
+				bool writeRequest = !fl.lock && type == WRITE && fl.readers == 0;
 
 				// If we want read (non-exclusive) access, there must not be any writers
-				bool readRequest = !meta.lock && type == READ && meta.writers == 0;
+				bool readRequest = !fl.lock && type == READ && fl.writers == 0;
 
 				return writeRequest || readRequest;
 			});
 		if (type == WRITE) {
-			meta.lock = true;
-			meta.tid = id;
-			meta.writers++;
+			fl.lock = true;
+			fl.tid = id;
+			fl.writers++;
 		} else {
-			meta.readers++;
+			fl.readers++;
 		}
 	}
 	lk.unlock();
@@ -171,30 +173,36 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 	os << "Thread " << id << " is unlocking " << file;
 	logEvent(THREAD, os.str());
 
-	FileMeta &meta = dir->files[file];
+	FileLock &fl = dir->locks[file];
 	std::unique_lock<std::mutex> lk(dirLock);
 	{
 		// Wait until the file is actually locked and the current thread is the owner of the lock
-		meta.cond.wait(lk, [&meta, &id, &type] 
+		fl.cond.wait(lk, [&fl, &id, &type] 
 			{
-				bool writeRequest = type == WRITE && meta.lock && meta.tid == id;
+				bool writeRequest = type == WRITE && fl.lock && fl.tid == id;
 				bool readRequest = type == READ;
 				return writeRequest || readRequest; 
 			});
 		if (type == WRITE) {
-			meta.lock = false;
-			meta.tid = nobody;
-			meta.writers--;
+			fl.lock = false;
+			fl.tid = nobody;
+			fl.writers--;
 		} else if (type == READ) {
-			meta.readers--;
+			fl.readers--;
 		}
 	}
 	lk.unlock();
-	meta.cond.notify_one();
+	fl.cond.notify_one();
 
 	std::ostringstream os2;
 	os2 << "Thread " << id << " unlocked " << file;
 	logEvent(THREAD, os2.str());
+}
+
+// File existence check
+bool STORAGE::Filesystem::exists(std::string name) {
+	// If the count is 0, it doesn't exist.
+	return lookup.count(name);
 }
 
 size_t STORAGE::Filesystem::count(CountType type) {
@@ -244,7 +252,7 @@ void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	pos += sizeof(FilePosition);
 
 	for (FileIndex i = 0; i < dir->numFiles; ++i) {
-		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i].position), sizeof(FilePosition));
+		memcpy(buffer + pos, reinterpret_cast<char*>(&fd->files[i]), sizeof(FilePosition));
 		pos += sizeof(FilePosition);
 	}
 
@@ -267,7 +275,7 @@ STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 	pos += sizeof(FilePosition);
 
 	for (FileIndex i = 0; i < directory->numFiles; ++i) {
-		memcpy(&directory->files[i].position, buffer + pos, sizeof(FilePosition));
+		memcpy(&directory->files[i], buffer + pos, sizeof(FilePosition));
 		pos += sizeof(FilePosition);
 	}
 
@@ -295,7 +303,7 @@ FilePosition STORAGE::Writer::tell() {
 }
 
 void STORAGE::Writer::seek(off_t pos, StartLocation start) {
-	FilePosition &loc = fs->dir->files[file].position;
+	FilePosition &loc = fs->dir->files[file];
 	FileSize &len = fs->dir->headers[file].size;
 
 	if (start == BEGIN) {
@@ -312,7 +320,7 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 }
 
 void STORAGE::Writer::write(const char *data, FileSize size) {
-	FilePosition loc = fs->dir->files[file].position;
+	FilePosition loc = fs->dir->files[file];
 	FileSize &virtualSize = fs->dir->headers[file].virtualSize;
 	FileSize oldSize = fs->dir->headers[file].size;
 
@@ -328,7 +336,7 @@ void STORAGE::Writer::write(const char *data, FileSize size) {
 	// This generates garbage that may eventually need to be cleaned up.
 	if (size > virtualSize) {
 		fs->insert(header.name, size, file, true);
-		FilePosition newLoc = fs->dir->files[file].position;
+		FilePosition newLoc = fs->dir->files[file];
 		// If we are writing somewhere in the middle of the file, we have to copy over some of the beginning
 		// of the old file.
 		if (position > 0) {
@@ -356,7 +364,7 @@ FilePosition STORAGE::Reader::tell() {
 }
 
 void STORAGE::Reader::seek(off_t pos, StartLocation start) {
-	FilePosition &loc = fs->dir->files[file].position;
+	FilePosition &loc = fs->dir->files[file];
 	FileSize &len = fs->dir->headers[file].size;
 
 	if (start == BEGIN) {
@@ -398,7 +406,7 @@ char *STORAGE::Reader::read() {
 }
 
 char *STORAGE::Reader::read(FileSize amt) {
-	FilePosition &loc = fs->dir->files[file].position;
+	FilePosition &loc = fs->dir->files[file];
 	FileSize &size = fs->dir->headers[file].size;
 
 	// We don't want to be able to read beyond the last byte of the file.

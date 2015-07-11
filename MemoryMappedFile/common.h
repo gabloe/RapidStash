@@ -1,3 +1,10 @@
+/*
+*  common.h
+*  Extra definitions that don't really beong anywhere else
+*
+*  Written by: Gabriel J. Loewen
+*/
+
 #ifndef _COMMON_H_
 #define _COMMON_H_
 #pragma once
@@ -7,9 +14,11 @@
 #define SUCCESS 0
 #define FAILURE 1
 
+// Attempt at supporting cross compatibility with POSIX systems
 #if defined(linux) || defined(__linux) || defined(apple) || defined(__apple)
 #include <sys/types.h>
 #include <fcntl.h>
+#define strcpy_s strcpy
 #define _close close
 #define _tell(fd) lseek(fd,0,SEEK_CUR)
 #define _lseek lseek
@@ -32,6 +41,4 @@ typedef int File;
 typedef size_t FileSize;
 typedef size_t FilePosition;
 typedef int FileIndex;
-
-bool fileExists(const char*);
 #endif

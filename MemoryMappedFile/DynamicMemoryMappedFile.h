@@ -1,7 +1,16 @@
+/*
+*  DynamicMemoryMappedFile.h
+*  Wraps memory mapped file creation with dynamic growth.  Manages when to grow the underlying file and provides
+*  raw unmanaged read and write access.
+*
+*  Written by: Gabriel J. Loewen
+*/
+
 #ifndef _MEMORY_MAPPED_FILE_
 #define _MEMORY_MAPPED_FILE_
 #pragma once
 
+// Trying to support cross compatibility
 #if defined(_WIN32) || defined(_WIN64)
 #include "mman.h"
 #include <io.h>
@@ -36,6 +45,9 @@ static bool growing;
 
 // Limit the overall size of the file to 4GB for compatibility reasons
 static const size_t maxSize = (size_t)(std::pow(2, 32) - 1);
+
+// Test for file existence
+bool fileExists(const char*);
 
 namespace STORAGE {
 	class DynamicMemoryMappedFile {
