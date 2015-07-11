@@ -11,7 +11,7 @@
 #include <array>
 #endif
 
-const int Max = (2 << 17) - 1;
+const int Max = 2 << 19;
 const int NumThreads = 12;
 
 static std::string data("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
@@ -24,7 +24,7 @@ void bar(STORAGE::Filesystem *f, int id) {
 		n << i;
 		std::string filename("MyFile" + n.str());
 
-		// Create random file
+		// Create file
 		file = f->select(filename);
 		auto reader = f->getReader(file);
 
@@ -50,13 +50,13 @@ void foo(STORAGE::Filesystem *f, int id) {
 		std::string filename("MyFile" + n.str());
 
 		// Create random file
-		file = f->select(filename);
+		file = f->select(filename, data.size());
 		auto writer = f->getWriter(file);
 
 		// Write lots of data
 		f->lock(file, STORAGE::WRITE);
 		{
-			writer.write((data + n.str()).c_str(), data.size() + n.str().size());
+			writer.write(data.c_str(), data.size());
 #if EXTRATESTING
 			auto reader = f->getReader(file);
 			char *buf = reader.read();

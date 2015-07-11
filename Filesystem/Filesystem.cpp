@@ -115,7 +115,7 @@ File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, 
 
 // Select a file from the filesystem to use.  Optionally, pass in the amount of space to be allocated
 // if the file needs to be created, otherwise the newly created file will be allocated with the default
-// size
+// size.  This is useful if you know the size of the data you will write beforehand.
 File STORAGE::Filesystem::select(std::string fname, size_t allocationSize) {
 	std::lock_guard<std::mutex> lk(dirLock);
 
@@ -127,7 +127,6 @@ File STORAGE::Filesystem::select(std::string fname, size_t allocationSize) {
 		logEvent(EVENT, "File " + fname + " exists");
 		file = lookup[fname];
 	} else {
-		// File doesn't exist.  Create it.
 		file = createNewFile(fname, allocationSize);
 	}
 
@@ -202,7 +201,7 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 // File existence check
 bool STORAGE::Filesystem::exists(std::string name) {
 	// If the count is 0, it doesn't exist.
-	return lookup.count(name);
+	return lookup.count(name) > 0;
 }
 
 size_t STORAGE::Filesystem::count(CountType type) {

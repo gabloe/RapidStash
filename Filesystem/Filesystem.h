@@ -116,7 +116,7 @@ namespace STORAGE {
 		/*
 		 *  Statics
 		 */
-		static const FileSize MINALLOCATION = 128;  // Pre-Allocate 128 bytes per file (plus header size)
+		static const FileSize MINALLOCATION = 32;  // Pre-Allocate 32 bytes per file (plus header size)
 		static const size_t SIZE = (2 * sizeof(File)) + sizeof(FilePosition) + (sizeof(FilePosition) * MAXFILES);
 	};
 
