@@ -27,19 +27,20 @@ bool fileExists(const char* fname) {
  */
 STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : backingFilename(fname) {
 	// If the backing file does not exist, we need to create it
-	bool createInitial = false;
+	bool createInitial;
 	growing = false;
 
 	int fd;
-	if (!fileExists(backingFilename)) {
-		isNewFile = true;
-		fd = getFileDescriptor(backingFilename, true);
+	bool exists = fileExists(backingFilename);
+	fd = getFileDescriptor(backingFilename, !exists);
+	isNewFile = !exists;
+	createInitial = !exists;
+
+	if (!exists) {
 		createInitial = true;
 		mapSize = INITIAL_SIZE;
 	} else {
 		// Read file size from the host filesystem
-		isNewFile = false;
-		fd = getFileDescriptor(backingFilename, false);
 		_lseek(fd, 0L, SEEK_END);
 		mapSize = _tell(fd);
 		_lseek(fd, 0L, SEEK_SET);
@@ -129,9 +130,9 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, si
 
 checkspace:
 	std::unique_lock<std::mutex> lk(growthLock);
-	if (end > mapSize - 1) {
+	if (end > mapSize) {
 		cvWrite.wait(lk, [] {return !growing; });
-		grow(end - mapSize - 1);
+		grow(end);
 		lk.unlock();
 		cvWrite.notify_one();
 		goto checkspace;
@@ -147,7 +148,7 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 	size_t start = pos + off;
 	size_t end = start + len;
 
-	if (end > mapSize - 1) {
+	if (end > mapSize) {
 		// Crash gently...
 		logEvent(ERROR, "Attempted to read beyond the end of the filesystem!");
 		shutdown(FAILURE);
@@ -210,11 +211,15 @@ bool STORAGE::DynamicMemoryMappedFile::sanityCheck(const char * header) {
 	return true;
 }
 
-void STORAGE::DynamicMemoryMappedFile::grow(size_t amt) {	// Increase the size by some amount
+void STORAGE::DynamicMemoryMappedFile::grow(size_t newSize) {	// Increase the size by some amount
 	growing = true;
-
 	size_t oldMapSize = mapSize;
-	size_t test = (size_t)std::ceil((oldMapSize + amt) * GROWTH_FACTOR);
+	size_t amt = newSize - oldMapSize;
+	if (amt <= 0) {
+		growing = false;
+		return;
+	}
+	size_t test = (size_t)std::ceil(newSize * GROWTH_FACTOR);
 	mapSize = test > maxSize ? maxSize : test;
 
 #if EXTRATESTING

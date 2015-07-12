@@ -14,7 +14,7 @@
 const int Max = 2 << 19;
 const int NumThreads = 12;
 
-static std::string data("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+static std::string tmp("Test!");
 
 void bar(STORAGE::Filesystem *f, int id) {
 	File file;
@@ -23,18 +23,24 @@ void bar(STORAGE::Filesystem *f, int id) {
 	for (int i = id; i < Max; i += NumThreads) {
 		n << i;
 		std::string filename("MyFile" + n.str());
+		std::string data(tmp + filename);
 
 		// Create file
 		file = f->select(filename);
 		auto reader = f->getReader(file);
 
-		// Write lots of data
+		// Read lots of data
 		f->lock(file, STORAGE::READ);
 		{
-			char *data = reader.read();
-			//std::string stuff(data, f->getHeader(file).size);
-			//std::cout << stuff << std::endl;
-			free(data);
+			char *d = reader.read();
+#if EXTRATESTING // Check that the data is correct
+			std::string stuff(d, f->getHeader(file).size);
+			free(d);
+			if (stuff.compare(data) != 0) {
+				logEvent(ERROR, "Data mismatch!");
+				f->shutdown(FAILURE);
+			}
+#endif
 		}
 		f->unlock(file, STORAGE::READ);
 		n.str(std::string());
@@ -48,9 +54,10 @@ void foo(STORAGE::Filesystem *f, int id) {
 	for (int i = id; i < Max; i += NumThreads) {
 		n << i;
 		std::string filename("MyFile" + n.str());
+		std::string data(tmp + filename);
 
 		// Create random file
-		file = f->select(filename, data.size());
+		file = f->select(filename);
 		auto writer = f->getWriter(file);
 
 		// Write lots of data

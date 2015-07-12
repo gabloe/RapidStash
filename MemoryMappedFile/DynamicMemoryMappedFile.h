@@ -32,7 +32,7 @@ int ftruncate(int, size_t);
 #include <condition_variable>
 #include <atomic>
 
-#define GROWTH_FACTOR 1.25 // Grow 25% larger than requested.  This helps to prevent excessive calls to grow
+#define GROWTH_FACTOR 1.05 // Grow 5% larger than requested.  This helps to prevent excessive calls to grow
 static short VERSION = 1;
 static char SANITY[] = { 0x0,0x0,0xd,0x1,0xe,0x5,0x0,0xf,0xd,0x0,0x0,0xd,0xa,0xd,0x5 };
 #define HEADER_SIZE sizeof(VERSION) + sizeof(SANITY) + sizeof(size_t)
@@ -41,6 +41,7 @@ static char SANITY[] = { 0x0,0x0,0xd,0x1,0xe,0x5,0x0,0xf,0xd,0x0,0x0,0xd,0xa,0xd
 static std::mutex growthLock;
 static std::condition_variable cvWrite;
 static std::condition_variable cvRead;
+static std::atomic<size_t> actualSize;
 static bool growing;
 
 // Limit the overall size of the file to 4GB for compatibility reasons
@@ -72,6 +73,8 @@ namespace STORAGE {
 		 * Read raw data from the filesystem.
 		 */
 		char *raw_read(size_t, size_t, size_t = HEADER_SIZE);
+
+		void shrink(size_t);
 
 		bool isNew() {
 			return isNewFile;

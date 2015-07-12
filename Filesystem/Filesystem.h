@@ -91,10 +91,11 @@ namespace STORAGE {
 	struct FileHeader {
 		// Statics
 		static const int MAXNAMELEN = 32;	// Allow for up to 32 character long names
-		static const size_t SIZE = MAXNAMELEN + 2 * sizeof(FileSize);
+		static const size_t SIZE = MAXNAMELEN + sizeof(FilePosition) + 2 * sizeof(FileSize);
 
 		// Data
 		char name[MAXNAMELEN];				// The file name
+		FilePosition next;					// Used in the pending/free list.  Should be 0 for allocated files
 		FileSize size;						// The number of bytes actually used for the file
 		FileSize virtualSize;				// The total number of bytes allocated for the file
 	};
@@ -102,7 +103,8 @@ namespace STORAGE {
 	struct FileDirectory {
 		// Data
 		File numFiles;
-		File firstFree;
+		File nextSpot;
+		FilePosition tempList;
 		FilePosition nextRawSpot;
 		std::array<FilePosition, MAXFILES> files;		// The metadata consists of where the file is located and locking info
 		
@@ -111,13 +113,12 @@ namespace STORAGE {
 		std::array<FileHeader, MAXFILES> headers;		// The headers contain the filename and file size
 
 		// Methods
-		FileDirectory() : numFiles(0), firstFree(0), nextRawSpot(SIZE) {}
+		FileDirectory() : numFiles(0), nextSpot(0), tempList(0), nextRawSpot(SIZE) {}
 
 		/*
 		 *  Statics
 		 */
-		static const FileSize MINALLOCATION = 32;  // Pre-Allocate 32 bytes per file (plus header size)
-		static const size_t SIZE = (2 * sizeof(File)) + sizeof(FilePosition) + (sizeof(FilePosition) * MAXFILES);
+		static const size_t SIZE = (2 * sizeof(File)) + (2 * sizeof(FilePosition)) + (sizeof(FilePosition) * MAXFILES);
 	};
 
 	// Statistics for writes and reads
@@ -141,7 +142,7 @@ namespace STORAGE {
 
 		Filesystem(const char* fname);
 		void shutdown(int code = SUCCESS);
-		File select(std::string, size_t = FileDirectory::MINALLOCATION);
+		File select(std::string, size_t = 0);
 		void lock(File, LockType);
 		void unlock(File, LockType);
 		FileHeader getHeader(File);
@@ -151,15 +152,18 @@ namespace STORAGE {
 		double getWriteTurnaround();
 		double getReadTurnaround();
 		bool exists(std::string);
+		void clearTempList();
 
 	private:
 		DynamicMemoryMappedFile file;
 		void writeFileDirectory(FileDirectory *);
 		FileDirectory *readFileDirectory();
 		FileDirectory *dir;
-		File insert(const char *, FileSize = FileDirectory::MINALLOCATION, File = 0, bool = false);
+		File insert(const char *, FileSize = 0, File = 0, bool = false);
 		FileHeader readHeader(File);
+		FileHeader readHeader(FilePosition);
 		void writeHeader(File);
+		void writeHeader(FileHeader, FilePosition);
 		File createNewFile(std::string, size_t);
 
 		// For quick lookups, map filenames to spot in meta table.

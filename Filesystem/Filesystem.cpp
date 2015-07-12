@@ -37,15 +37,15 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	}
 }
 
-// Read the header for a particular file from disk
-STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
-	FilePosition &pos = dir->files[f];
+STORAGE::FileHeader STORAGE::Filesystem::readHeader(FilePosition pos) {
 	STORAGE::FileHeader header;
 	char *buffer = file.raw_read(pos, FileHeader::SIZE);
 
 	size_t offset = 0;
-	memcpy(header.name, buffer, FileHeader::MAXNAMELEN);
+	memcpy(header.name, buffer + offset, FileHeader::MAXNAMELEN);
 	offset += FileHeader::MAXNAMELEN;
+	memcpy(&header.next, buffer + offset, sizeof(FilePosition));
+	offset += sizeof(FilePosition);
 	memcpy(&header.size, buffer + offset, sizeof(FileSize));
 	offset += sizeof(FileSize);
 	memcpy(&header.virtualSize, buffer + offset, sizeof(FileSize));
@@ -54,11 +54,13 @@ STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
 	return header;
 }
 
-// Write a files header to disk
-void STORAGE::Filesystem::writeHeader(File f) {
+// Read the header for a particular file from disk
+STORAGE::FileHeader STORAGE::Filesystem::readHeader(File f) {
 	FilePosition &pos = dir->files[f];
-	FileHeader &header = dir->headers[f];
+	return readHeader(pos);
+}
 
+void STORAGE::Filesystem::writeHeader(FileHeader header, FilePosition pos) {
 	char *buffer = (char*)malloc(FileHeader::SIZE);
 	if (buffer == NULL) {
 		logEvent(ERROR, "Memory allocation failed.");
@@ -67,11 +69,20 @@ void STORAGE::Filesystem::writeHeader(File f) {
 	size_t offset = 0;
 	memcpy(buffer + offset, header.name, FileHeader::MAXNAMELEN);
 	offset += FileHeader::MAXNAMELEN;
+	memcpy(buffer + offset, &header.next, sizeof(FilePosition));
+	offset += sizeof(FilePosition);
 	memcpy(buffer + offset, reinterpret_cast<char*>(&header.size), sizeof(FileSize));
 	offset += sizeof(FileSize);
 	memcpy(buffer + offset, reinterpret_cast<char*>(&header.virtualSize), sizeof(FileSize));
 	file.raw_write(buffer, FileHeader::SIZE, pos);
 	free(buffer);
+}
+
+// Write a files header to disk
+void STORAGE::Filesystem::writeHeader(File f) {
+	FilePosition &pos = dir->files[f];
+	FileHeader &header = dir->headers[f];
+	writeHeader(header, pos);
 }
 
 // Create a new file
@@ -93,21 +104,65 @@ File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, 
 
 	// If the file is new
 	if (!reuse) {
-		spot = dir->firstFree++;
+		spot = dir->nextSpot++;
+	}
+
+	// Update the location of the file on disk.
+	dir->files[spot] = dir->nextRawSpot;
+	
+	// We don't always have to increment the spot on disk
+	bool incrementRawSpot = true;
+
+	// If we are not reusing an old file (i.e. the file is new)
+	if (!reuse) {
 		dir->numFiles++;
 		dir->locks[spot].lock = false;
 		dir->headers[spot].size = 0;
+
+		// The file is new and has 0 length.  Leave it temporarily on the templist
+		if (size == 0) {
+			// Walk the temp list.  Replace an entry that has already been relocated
+			FilePosition lst = dir->tempList;
+			FileHeader h;
+			File recordedLoc;
+			bool found = false;
+			while (lst != 0) {
+				h = readHeader(lst);
+				recordedLoc = lookup[std::string(h.name)];
+				// If the file is pointing to a different location, we know it has been relocated.
+				if (dir->files[recordedLoc] != lst) {
+					found = true;
+					break;
+				}
+				lst = h.next;
+			}
+
+			if (found) {
+				// Overwrite a file header that has been relocated
+				dir->headers[spot].next = h.next;
+				dir->files[spot] = lst;
+				incrementRawSpot = false;
+			} else {
+				// Add file header to the templist
+				dir->headers[spot].next = dir->tempList;
+				dir->tempList = dir->files[spot];
+			}
+		} else {
+			dir->headers[spot].next = 0;
+		}
 	} else {
+		// We are reusing an old file (i.e. the file has grown and must be relocated)
 		dir->headers[spot].size = size;
 	}
 
-	dir->files[spot] = dir->nextRawSpot;
-	dir->nextRawSpot += totalSize;
+	if (incrementRawSpot) {
+		dir->nextRawSpot += totalSize;
+	}
 
+	// Copy over some metadata
 	strcpy_s(dir->headers[spot].name, name);
 	dir->headers[spot].virtualSize = size;
 	writeHeader(spot);
-
 	lookup[std::string(name)] = spot;
 
 	return spot;
@@ -127,6 +182,7 @@ File STORAGE::Filesystem::select(std::string fname, size_t allocationSize) {
 		logEvent(EVENT, "File " + fname + " exists");
 		file = lookup[fname];
 	} else {
+		// This potentially creates garbage if the user doesn't ever write to the file
 		file = createNewFile(fname, allocationSize);
 	}
 
@@ -245,9 +301,11 @@ void STORAGE::Filesystem::writeFileDirectory(FileDirectory *fd) {
 	FilePosition pos = 0;
 	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->numFiles), sizeof(File));
 	pos += sizeof(File);
-	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->firstFree), sizeof(File));
+	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->nextSpot), sizeof(File));
 	pos += sizeof(File);
 	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->nextRawSpot), sizeof(FilePosition));
+	pos += sizeof(FilePosition);
+	memcpy(buffer + pos, reinterpret_cast<char*>(&fd->tempList), sizeof(FilePosition));
 	pos += sizeof(FilePosition);
 
 	for (FileIndex i = 0; i < dir->numFiles; ++i) {
@@ -268,7 +326,7 @@ STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 
 	memcpy(&directory->numFiles, buffer + pos, sizeof(File));
 	pos += sizeof(File);
-	memcpy(&directory->firstFree, buffer + pos, sizeof(File));
+	memcpy(&directory->nextSpot, buffer + pos, sizeof(File));
 	pos += sizeof(File);
 	memcpy(&directory->nextRawSpot, buffer + pos, sizeof(FilePosition));
 	pos += sizeof(FilePosition);
