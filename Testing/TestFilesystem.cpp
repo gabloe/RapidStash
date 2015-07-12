@@ -35,12 +35,12 @@ void bar(STORAGE::Filesystem *f, int id) {
 			char *d = reader.read();
 #if EXTRATESTING // Check that the data is correct
 			std::string stuff(d, f->getHeader(file).size);
-			free(d);
 			if (stuff.compare(data) != 0) {
+				free(d);
 				logEvent(ERROR, "Data mismatch!");
-				f->shutdown(FAILURE);
 			}
 #endif
+			free(d);
 		}
 		f->unlock(file, STORAGE::READ);
 		n.str(std::string());
@@ -74,6 +74,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 				logEvent(ERROR, "Written data incorrect for file " + filename);
 				logEvent(ERROR, "Found '" + res + "', should be '" + data + "'");
 			}
+			free(buf);
 #endif
 		}
 		f->unlock(file, STORAGE::WRITE);
