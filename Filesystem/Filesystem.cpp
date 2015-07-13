@@ -44,11 +44,15 @@ STORAGE::FileHeader STORAGE::Filesystem::readHeader(FilePosition pos) {
 	size_t offset = 0;
 	memcpy(header.name, buffer + offset, FileHeader::MAXNAMELEN);
 	offset += FileHeader::MAXNAMELEN;
+	memcpy(&header.temp, buffer + offset, sizeof(bool));
+	offset += sizeof(bool);
 	memcpy(&header.next, buffer + offset, sizeof(FilePosition));
 	offset += sizeof(FilePosition);
 	memcpy(&header.size, buffer + offset, sizeof(FileSize));
 	offset += sizeof(FileSize);
 	memcpy(&header.virtualSize, buffer + offset, sizeof(FileSize));
+	offset += sizeof(FileSize);
+	memcpy(&header.version, buffer + offset, sizeof(FileVersion));
 	free(buffer);
 
 	return header;
@@ -69,11 +73,15 @@ void STORAGE::Filesystem::writeHeader(FileHeader header, FilePosition pos) {
 	size_t offset = 0;
 	memcpy(buffer + offset, header.name, FileHeader::MAXNAMELEN);
 	offset += FileHeader::MAXNAMELEN;
+	memcpy(buffer + offset, reinterpret_cast<char*>(&header.temp), sizeof(bool));
+	offset += sizeof(bool);
 	memcpy(buffer + offset, &header.next, sizeof(FilePosition));
 	offset += sizeof(FilePosition);
 	memcpy(buffer + offset, reinterpret_cast<char*>(&header.size), sizeof(FileSize));
 	offset += sizeof(FileSize);
 	memcpy(buffer + offset, reinterpret_cast<char*>(&header.virtualSize), sizeof(FileSize));
+	offset += sizeof(FileSize);
+	memcpy(buffer + offset, reinterpret_cast<char*>(&header.version), sizeof(FileVersion));
 	file.raw_write(buffer, FileHeader::SIZE, pos);
 	free(buffer);
 }
@@ -99,73 +107,77 @@ File STORAGE::Filesystem::createNewFile(std::string fname, size_t size) {
 File STORAGE::Filesystem::insert(const char *name, FileSize size, File oldFile, bool reuse) {
 	std::lock_guard<std::mutex> lk(insertGuard); // Avoid potential data races here
 
-	File spot = oldFile;
-	FileSize totalSize = FileHeader::SIZE + size;
+	// The file index is returned to the caller...
+	File newFile;
+	FileHeader newFileHeader;
+	FilePosition position;
+	FileSize totalSize = size + FileHeader::SIZE;
 
-	// If the file is new
-	if (!reuse) {
-		spot = dir->nextSpot++;
-	}
+	// Copy over some shared metadata
+	strcpy_s(newFileHeader.name, name);
+	newFileHeader.size = 0;
+	newFileHeader.virtualSize = size;
+	newFileHeader.temp = false;
 
-	// Update the location of the file on disk.
-	dir->files[spot] = dir->nextRawSpot;
-	
-	// We don't always have to increment the spot on disk
-	bool incrementRawSpot = true;
-
-	// If we are not reusing an old file (i.e. the file is new)
-	if (!reuse) {
+	// If we're reusing a file, this means a file is being overwritten and must be relocated.
+	// A new version of the file is written, and the old version is kept in a linked list
+	if (reuse) {
+		FileHeader oldFileHeader = readHeader(oldFile);
+		newFile = oldFile;
+		newFileHeader.next = dir->files[oldFile];
+		newFileHeader.version = oldFileHeader.version + 1;
+	} else { // Otherwise, the file is new.
+		newFile = dir->nextSpot++;
+		newFileHeader.next = 0;
+		newFileHeader.version = 0;
 		dir->numFiles++;
-		dir->locks[spot].lock = false;
-		dir->headers[spot].size = 0;
-
-		// The file is new and has 0 length.  Leave it temporarily on the templist
-		if (size == 0) {
-			// Walk the temp list.  Replace an entry that has already been relocated
-			FilePosition lst = dir->tempList;
-			FileHeader h;
-			File recordedLoc;
-			bool found = false;
-			while (lst != 0) {
-				h = readHeader(lst);
-				recordedLoc = lookup[std::string(h.name)];
-				// If the file is pointing to a different location, we know it has been relocated.
-				if (dir->files[recordedLoc] != lst) {
-					found = true;
-					break;
-				}
-				lst = h.next;
-			}
-
-			if (found) {
-				// Overwrite a file header that has been relocated
-				dir->headers[spot].next = h.next;
-				dir->files[spot] = lst;
-				incrementRawSpot = false;
-			} else {
-				// Add file header to the templist
-				dir->headers[spot].next = dir->tempList;
-				dir->tempList = dir->files[spot];
-			}
-		} else {
-			dir->headers[spot].next = 0;
-		}
-	} else {
-		// We are reusing an old file (i.e. the file has grown and must be relocated)
-		dir->headers[spot].size = size;
+		dir->locks[newFile].lock = false;
 	}
 
-	if (incrementRawSpot) {
+	// If the size is 0, push the header onto the tempList.  Theres no need to allocate a file if it has no
+	// space to even write any data.
+	if (!reuse && size == 0) {
+		FilePosition lst = dir->tempList;
+		FileHeader h;
+		File recordedLoc;
+		bool found = false;
+		while (lst != 0) {
+			h = readHeader(lst);
+			std::string name(h.name);
+			// If the file was deleted, let's overwrite it
+			if (exists(name)) {
+				found = true;
+				break;
+			}
+			recordedLoc = lookup[name];
+			// If the file is pointing to a different location, we know it has been relocated.
+			if (dir->files[recordedLoc] != lst) {
+				found = true;
+				break;
+			}
+			lst = h.next;
+		}
+		if (found) {
+			position = lst;
+			newFileHeader.next = h.next;
+		} else {
+			position = dir->nextRawSpot;
+			dir->nextRawSpot += totalSize;
+			newFileHeader.next = dir->tempList;
+			dir->tempList = position;
+		}
+		newFileHeader.temp = true;
+	} else {
+		position = dir->nextRawSpot;
 		dir->nextRawSpot += totalSize;
 	}
 
-	// Copy over some metadata
-	strcpy_s(dir->headers[spot].name, name);
-	dir->headers[spot].virtualSize = size;
-	writeHeader(spot);
-	lookup[std::string(name)] = spot;
+	dir->files[newFile] = position;
+	dir->headers[newFile] = newFileHeader;
+	writeHeader(newFileHeader, position);
+	lookup[std::string(name)] = newFile;
 
-	return spot;
+	return newFile;
 }
 
 // Select a file from the filesystem to use.  Optionally, pass in the amount of space to be allocated
@@ -256,8 +268,7 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 
 // File existence check
 bool STORAGE::Filesystem::exists(std::string name) {
-	// If the count is 0, it doesn't exist.
-	return lookup.count(name) > 0;
+	return lookup.find(name) != lookup.end();
 }
 
 size_t STORAGE::Filesystem::count(CountType type) {
@@ -391,7 +402,8 @@ void STORAGE::Writer::write(const char *data, FileSize size) {
 
 	// If there is not enough excess space available, we must create a new file for this write
 	// This generates garbage that may eventually need to be cleaned up.
-	if (size > virtualSize) {
+	// OR if MVCC is enabled and the file is not new, we need to make a new version.
+	if (size > virtualSize || (MVCC && !header.temp)) {
 		fs->insert(header.name, size, file, true);
 		FilePosition newLoc = fs->dir->files[file];
 		// If we are writing somewhere in the middle of the file, we have to copy over some of the beginning

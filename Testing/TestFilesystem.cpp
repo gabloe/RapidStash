@@ -11,10 +11,24 @@
 #include <array>
 #endif
 
-const int Max = 2 << 19;
+const int Max = 2 << 13;
 const int NumThreads = 12;
 
-static std::string tmp("Test!");
+std::string random_string(size_t length)
+{
+	auto randchar = []() -> char
+	{
+		const char charset[] =
+			"0123456789"
+			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+			"abcdefghijklmnopqrstuvwxyz";
+		const size_t max_index = (sizeof(charset) - 1);
+		return charset[rand() % max_index];
+	};
+	std::string str(length, 0);
+	std::generate_n(str.begin(), length, randchar);
+	return str;
+}
 
 void bar(STORAGE::Filesystem *f, int id) {
 	File file;
@@ -23,7 +37,6 @@ void bar(STORAGE::Filesystem *f, int id) {
 	for (int i = id; i < Max; i += NumThreads) {
 		n << i;
 		std::string filename("MyFile" + n.str());
-		std::string data(tmp + filename);
 
 		// Create file
 		file = f->select(filename);
@@ -33,13 +46,6 @@ void bar(STORAGE::Filesystem *f, int id) {
 		f->lock(file, STORAGE::READ);
 		{
 			char *d = reader.read();
-#if EXTRATESTING // Check that the data is correct
-			std::string stuff(d, f->getHeader(file).size);
-			if (stuff.compare(data) != 0) {
-				free(d);
-				logEvent(ERROR, "Data mismatch!");
-			}
-#endif
 			free(d);
 		}
 		f->unlock(file, STORAGE::READ);
@@ -52,6 +58,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 	std::ostringstream n;
 
 	for (int i = id; i < Max; i += NumThreads) {
+		std::string tmp = random_string(std::rand() % 512 + 32);
 		n << i;
 		std::string filename("MyFile" + n.str());
 		std::string data(tmp + filename);
@@ -84,6 +91,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 }
 
 int main() {
+	std::srand(std::time(NULL));
 #if !LOGGING
 	std::cout << "Working..." << std::endl;
 #endif

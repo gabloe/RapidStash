@@ -91,13 +91,15 @@ namespace STORAGE {
 	struct FileHeader {
 		// Statics
 		static const int MAXNAMELEN = 32;	// Allow for up to 32 character long names
-		static const size_t SIZE = MAXNAMELEN + sizeof(FilePosition) + 2 * sizeof(FileSize);
+		static const size_t SIZE = MAXNAMELEN + sizeof(bool) + sizeof(FilePosition) + 2 * sizeof(FileSize) + sizeof(FileVersion);
 
 		// Data
 		char name[MAXNAMELEN];				// The file name
-		FilePosition next;					// Used in the pending/free list.  Should be 0 for allocated files
+		bool temp;							// Flag for temp list membership
+		FilePosition next;					// Ised in the free list and in MVCC
 		FileSize size;						// The number of bytes actually used for the file
 		FileSize virtualSize;				// The total number of bytes allocated for the file
+		FileVersion version;				// The version of this file for MVCC
 	};
 
 	struct FileDirectory {
