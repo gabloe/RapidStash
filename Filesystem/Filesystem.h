@@ -91,20 +91,18 @@ namespace STORAGE {
 	struct FileHeader {
 		// Statics
 		static const int MAXNAMELEN = 32;	// Allow for up to 32 character long names
-		static const size_t SIZE = MAXNAMELEN + sizeof(bool) + sizeof(FilePosition) + 2 * sizeof(FileSize) + sizeof(FileVersion);
+		static const size_t SIZE = MAXNAMELEN + sizeof(FilePosition) + sizeof(FileSize) + sizeof(FileVersion);
 
 		// Data
 		char name[MAXNAMELEN];				// The file name
-		bool temp;							// Flag for temp list membership
-		FilePosition next;					// Ised in the free list and in MVCC
+		FilePosition next;					// Used in the free list and in MVCC
 		FileSize size;						// The number of bytes actually used for the file
-		FileSize virtualSize;				// The total number of bytes allocated for the file
 		FileVersion version;				// The version of this file for MVCC
 	};
 
 	struct FileDirectory {
 		// Data
-		File numFiles;
+		FileIndex numFiles;
 		File nextSpot;
 		FilePosition tempList;
 		FilePosition nextRawSpot;
@@ -120,7 +118,7 @@ namespace STORAGE {
 		/*
 		 *  Statics
 		 */
-		static const size_t SIZE = (2 * sizeof(File)) + (2 * sizeof(FilePosition)) + (sizeof(FilePosition) * MAXFILES);
+		static const size_t SIZE =  sizeof(FileIndex) + sizeof(File) + (2 * sizeof(FilePosition)) + (sizeof(FilePosition) * MAXFILES);
 	};
 
 	// Statistics for writes and reads
@@ -128,7 +126,8 @@ namespace STORAGE {
 		BYTESWRITTEN,
 		WRITES,
 		BYTESREAD,
-		READS
+		READS,
+		FILES
 	};
 
 	/*
@@ -144,7 +143,7 @@ namespace STORAGE {
 
 		Filesystem(const char* fname);
 		void shutdown(int code = SUCCESS);
-		File select(std::string, size_t = 0);
+		File select(std::string);
 		void lock(File, LockType);
 		void unlock(File, LockType);
 		FileHeader getHeader(File);
@@ -154,19 +153,19 @@ namespace STORAGE {
 		double getWriteTurnaround();
 		double getReadTurnaround();
 		bool exists(std::string);
-		void clearTempList();
 
 	private:
 		DynamicMemoryMappedFile file;
 		void writeFileDirectory(FileDirectory *);
 		FileDirectory *readFileDirectory();
 		FileDirectory *dir;
-		File insert(const char *, FileSize = 0, File = 0, bool = false);
+		File insertHeader(const char *);
+		FilePosition relocateHeader(File, FileSize);
 		FileHeader readHeader(File);
 		FileHeader readHeader(FilePosition);
 		void writeHeader(File);
 		void writeHeader(FileHeader, FilePosition);
-		File createNewFile(std::string, size_t);
+		File createNewFile(std::string);
 
 		// For quick lookups, map filenames to spot in meta table.
 		std::map<std::string, File> lookup;

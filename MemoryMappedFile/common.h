@@ -15,7 +15,7 @@
 #define FAILURE 1
 
 // Enable for multiversion concurrency control
-static bool MVCC = true;
+static bool MVCC = false;
 
 // Attempt at supporting cross compatibility with POSIX systems
 #if defined(linux) || defined(__linux) || defined(apple) || defined(__apple)
@@ -43,6 +43,6 @@ static int _sopen_s(int *fd, const char *fname, int oflags, int shflags, int pmo
 typedef int File;
 typedef size_t FileSize;
 typedef size_t FilePosition;
-typedef size_t FileVersion;
+typedef int FileVersion;
 typedef int FileIndex;
 #endif
