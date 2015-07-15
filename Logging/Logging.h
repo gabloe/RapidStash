@@ -18,6 +18,7 @@
 #include <mutex>
 #include <atomic>
 
+#define COUTLOGGING		  0
 #define EXTRATESTING	  0			  // Perform and log verification tests
 #define THREADLOGGING	  0			  // Enable loging of thread events (lock and unlock)
 #define LOGGING			  0			  // Enable logging
@@ -74,6 +75,8 @@ static void logEvent(LogEventType type, std::string msg) {
 	}
 	logOut << os.str();
 }
+#elif COUTLOGGING
+#define logEvent(type, msg) {std::cout << LogEventTypeToString(type) << " : " << msg << std::endl;}
 #else
 #define logEvent(type, msg)
 #endif

@@ -60,22 +60,21 @@ namespace STORAGE {
 	static std::atomic<size_t> numWrites;									// Count of number of write operations
 	static std::atomic<size_t> bytesRead;									// Count of number of bytes read
 	static std::atomic<size_t> numReads;									// Count of number of read operations
-	static std::chrono::high_resolution_clock::time_point startWriteTime;	// Start time of first write
-	static std::chrono::high_resolution_clock::time_point startReadTime;	// Start time of first read
-	static std::atomic<bool> writeTimeStarted;								// Trigger for start time calculation
-	static std::atomic<bool> readTimeStarted;								// Trigger for start time calculation
+	static std::atomic<double> writeTime;									// Sum of write durations
+	static std::atomic<double> readTime;									// Sum of read durations
 
 	// A file is just am index into an internal array.
 	static std::mutex dirLock;		// If we modify anything in the file directory, it must be atomic.
 	static std::mutex insertGuard;	// Protect file directory info during inserts
 
 	static const size_t MAXFILES = 2 << 19; // 1MB entries at 8 bytes per entry == 8MB file directory
+	static bool timingEnabled = true;
 
 	// Lock type are either exclusive for both reads and writes (WRITE lock) or
 	// nonexclusive for reads only (READ lock).
 	enum LockType {
-		READ,
-		WRITE
+		READLOCK,
+		WRITELOCK
 	};
 
 	struct FileLock {		
@@ -99,6 +98,11 @@ namespace STORAGE {
 		FileSize size;						// The number of bytes actually used for the file
 		FileVersion version;				// The version of this file for MVCC
 	};
+
+	static std::ostream& operator<<(std::ostream& out, const FileHeader &obj) {
+		out << "Name: " << obj.name << "\nSize: " << obj.size << "\nNext: " << obj.next << "\nVersion: " << obj.version << "\n";
+		return out;
+	}
 
 	struct FileDirectory {
 		// Data
@@ -124,10 +128,17 @@ namespace STORAGE {
 	// Statistics for writes and reads
 	enum CountType {
 		BYTESWRITTEN,
-		WRITES,
+		NUMWRITES,
 		BYTESREAD,
-		READS,
-		FILES
+		NUMREADS,
+		FILES,
+		WRITETIME,
+		READTIME
+	};
+
+	enum ThroughputType {
+		WRITE,
+		READ
 	};
 
 	/*
@@ -150,9 +161,9 @@ namespace STORAGE {
 		Writer getWriter(File);
 		Reader getReader(File);
 		size_t count(CountType);
-		double getWriteTurnaround();
-		double getReadTurnaround();
+		long double getThroughput(CountType);
 		bool exists(std::string);
+		void checkFreeList();
 
 	private:
 		DynamicMemoryMappedFile file;
@@ -186,9 +197,7 @@ namespace STORAGE {
 	 */
 	class Reader {
 	public:
-		Reader(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {
-			header = fs->getHeader(file);
-		}
+		Reader(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
 		void seek(off_t, StartLocation);
 		char *read(FileSize);
 		char *read();
@@ -198,7 +207,6 @@ namespace STORAGE {
 		Filesystem *fs;
 		File file;
 		FilePosition position;
-		FileHeader header;
 	};
 
 	/*
@@ -207,9 +215,7 @@ namespace STORAGE {
 	*/
 	class Writer {
 	public:
-		Writer(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {
-			header = fs->getHeader(file);
-		}
+		Writer(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
 		void seek(off_t, StartLocation);
 		void write(const char *, FileSize);
 		FilePosition tell();
@@ -218,7 +224,6 @@ namespace STORAGE {
 		Filesystem *fs;
 		File file;
 		FilePosition position;
-		FileHeader header;
 	};
 
 

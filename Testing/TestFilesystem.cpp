@@ -3,7 +3,7 @@
 #include "Filesystem.h"
 #include "Logging.h"
 
-#define VECTOR 1
+#define VECTOR 0
 
 #if VECTOR
 #include <vector>
@@ -13,6 +13,8 @@
 
 const int Max = 2 << 15;
 const int NumThreads = 12;
+
+std::string prefix("ABCDEFGHIJKLMNOPQRTUVWXYZ");
 
 std::string random_string(size_t length)
 {
@@ -31,6 +33,8 @@ std::string random_string(size_t length)
 }
 
 void bar(STORAGE::Filesystem *f, int id) {
+	using namespace std::literals;
+
 	File file;
 	std::ostringstream n;
 
@@ -43,12 +47,24 @@ void bar(STORAGE::Filesystem *f, int id) {
 		auto reader = f->getReader(file);
 
 		// Read lots of data
-		//f->lock(file, STORAGE::READ);
+		f->lock(file, STORAGE::READLOCK);
 		{
 			char *d = reader.read();
+#if EXTRATESTING
+			std::string data(prefix + filename);
+			std::string res(d, f->getHeader(file).size);
+			if (data.compare(res) == 0) {
+				logEvent(EVENT, "Read data verified for file " + filename);
+			} else {
+				logEvent(ERROR, "Read data incorrect for file " + filename);
+				logEvent(ERROR, "Found '" + res + "', should be '" + data + "'");
+				std::getchar();
+				f->shutdown(FAILURE);
+			}
+#endif
 			free(d);
 		}
-		//f->unlock(file, STORAGE::READ);
+		f->unlock(file, STORAGE::READLOCK);
 		n.str(std::string());
 	}
 }
@@ -61,14 +77,14 @@ void foo(STORAGE::Filesystem *f, int id) {
 		std::string tmp = random_string(std::rand() % 512 + 32);
 		n << i;
 		std::string filename("MyFile" + n.str());
-		std::string data(tmp + filename);
+		std::string data(prefix + filename);
 
 		// Create random file
 		file = f->select(filename);
 		auto writer = f->getWriter(file);
 
 		// Write lots of data
-		f->lock(file, STORAGE::WRITE);
+		f->lock(file, STORAGE::WRITELOCK);
 		{
 			writer.write(data.c_str(), data.size());
 #if EXTRATESTING
@@ -77,16 +93,16 @@ void foo(STORAGE::Filesystem *f, int id) {
 			std::string res(buf, f->getHeader(file).size);
 			if (data.compare(res) == 0) {
 				logEvent(EVENT, "Written data verified for file " + filename);
-			}
-			else {
+			} else {
 				logEvent(ERROR, "Written data incorrect for file " + filename);
 				logEvent(ERROR, "Found '" + res + "', should be '" + data + "'");
+				std::getchar();
 				f->shutdown(FAILURE);
 			}
 			free(buf);
 #endif
 		}
-		f->unlock(file, STORAGE::WRITE);
+		f->unlock(file, STORAGE::WRITELOCK);
 		n.str(std::string());
 	}
 	return;
@@ -118,8 +134,6 @@ int main() {
 		th.join();
 	}
 
-	const double totalWriteTime = f.getWriteTurnaround();
-
 	for (int i = 0; i < NumThreads; ++i) {
 #if VECTOR
 		readers.push_back(std::thread(bar, &f, i));
@@ -132,20 +146,21 @@ int main() {
 		th.join();
 	}
 
-	const double totalReadTime = f.getReadTurnaround();
-	size_t numWrites = f.count(STORAGE::WRITES);
+	size_t numWrites = f.count(STORAGE::NUMWRITES);
 	size_t numBytesWrote = f.count(STORAGE::BYTESWRITTEN);
-	size_t numReads = f.count(STORAGE::READS);
+	size_t numReads = f.count(STORAGE::NUMREADS);
 	size_t numBytesRead = f.count(STORAGE::BYTESREAD);
 
-	double writeThroughput = numWrites / totalWriteTime;
-	double bpsWrote = numBytesWrote / totalWriteTime;
-	double readThroughput = numReads / totalReadTime;
-	double bpsRead = numBytesRead / totalReadTime;
+	double writeThroughput = f.getThroughput(STORAGE::NUMWRITES);
+	double bpsWrote = f.getThroughput(STORAGE::BYTESWRITTEN);
+
+	double readThroughput = f.getThroughput(STORAGE::NUMREADS);
+	double bpsRead = f.getThroughput(STORAGE::BYTESREAD);
 
 	std::ostringstream os, os2, os3, os4, os5;
-	os << "Turnaround time for writes: " << totalWriteTime << " s\n";
-	os << "Turnaround time for reads: " << totalReadTime << " s";
+	os << "Total write time: " << f.getThroughput(STORAGE::WRITETIME) << " seconds." << std::endl;
+	os << "Total read time: " << f.getThroughput(STORAGE::READTIME) << " seconds." << std::endl;
+
 	if (writeThroughput > 1000) {
 		os2 << "Throughput: " << writeThroughput / 1000 << " thousand writes per second. (" << bpsWrote / 1024 << " kbytes per second)";
 	}
@@ -165,6 +180,10 @@ int main() {
 #if VECTOR
 	writers.clear();
 	readers.clear();
+#endif
+
+#if EXTRATESTING
+	f.checkFreeList();
 #endif
 
 	f.shutdown();
