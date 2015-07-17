@@ -1,7 +1,5 @@
 #include "Filesystem.h"
 #include "Logging.h"
-#include "Filereader.h"
-#include "Filewriter.h"
 
 #define VECTOR 0
 
@@ -33,8 +31,6 @@ std::string random_string(size_t length)
 }
 
 void bar(STORAGE::Filesystem *f, int id) {
-	using namespace std::literals;
-
 	File file;
 	std::ostringstream n;
 
@@ -44,7 +40,7 @@ void bar(STORAGE::Filesystem *f, int id) {
 
 		// Create file
 		file = f->select(filename);
-		auto reader = f->getReader(file);
+		STORAGE::IO::Reader reader = f->getReader(file);
 
 		// Read lots of data
 		f->lock(file, STORAGE::WRITELOCK);
@@ -81,7 +77,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 
 		// Create random file
 		file = f->select(filename);
-		auto writer = f->getWriter(file);
+		STORAGE::IO::Writer writer = f->getWriter(file);
 
 		// Write lots of data
 		f->lock(file, STORAGE::WRITELOCK);

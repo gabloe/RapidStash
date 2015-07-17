@@ -268,7 +268,7 @@ void STORAGE::Filesystem::checkFreeList() {
 	FilePosition spot = dir->tempList;
 	while (spot != 0) {
 		const FileHeader h = readHeader(spot);
-		std::cout << h << std::endl;
+		//std::cout << h << std::endl;
 		spot = h.next;
 	}
 }

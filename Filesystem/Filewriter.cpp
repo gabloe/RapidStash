@@ -28,9 +28,9 @@ void STORAGE::IO::Writer::seek(off_t pos, StartLocation start) {
 }
 
 void STORAGE::IO::Writer::write(const char *data, FileSize size) {
-	std::chrono::time_point<std::chrono::steady_clock> start;
+	std::chrono::time_point<std::chrono::system_clock> start;
 	if (timingEnabled) {
-		start = std::chrono::high_resolution_clock::now();
+		start = std::chrono::system_clock::now();
 	}
 
 	FilePosition oldLoc = fs->dir->files[file];
@@ -68,8 +68,8 @@ void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 	numWrites++;
 
 	if (timingEnabled) {
-		auto end = std::chrono::high_resolution_clock::now();
-		auto turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		auto end = std::chrono::system_clock::now();
+		auto turnaround = end - start;
 		writeTime.store(writeTime.load() + turnaround.count());
 	}
 }

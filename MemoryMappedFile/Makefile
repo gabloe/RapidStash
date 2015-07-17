@@ -1,10 +1,9 @@
-
 CXX=g++
-STD=-std=c++0x
+STD=-std=c++14
 INC=-I../Logging
 
 all:
-	${CXX} ${STD} common.cpp DynamicMemoryMappedFile.cpp -c ${INC}
+	${CXX} ${STD} DynamicMemoryMappedFile.cpp -c ${INC}
 
 clean:
 	rm -f *.o

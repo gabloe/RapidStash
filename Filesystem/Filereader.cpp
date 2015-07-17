@@ -1,3 +1,5 @@
+#include <chrono>
+
 #include "Filereader.h"
 #include "FilesystemCommon.h"
 #include "Filesystem.h"
@@ -48,9 +50,9 @@ char *STORAGE::IO::Reader::read() {
 }
 
 char *STORAGE::IO::Reader::read(FileSize amt) {
-	std::chrono::time_point<std::chrono::steady_clock> start;
+	std::chrono::time_point<std::chrono::system_clock> start;
 	if (timingEnabled) {
-		start = std::chrono::high_resolution_clock::now();
+		start = std::chrono::system_clock::now();
 	}
 
 	STORAGE::FileHeader header = fs->dir->headers[file];
@@ -78,8 +80,8 @@ char *STORAGE::IO::Reader::read(FileSize amt) {
 	numReads++;
 
 	if (timingEnabled) {
-		auto end = std::chrono::high_resolution_clock::now();
-		auto turnaround = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+		auto end = std::chrono::system_clock::now();
+		auto turnaround = end - start;
 		readTime.store(readTime.load() + turnaround.count());
 	}
 	return data;

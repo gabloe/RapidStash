@@ -8,6 +8,7 @@
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <thread>
 
 namespace STORAGE {
 	// Atomic data.  Should avoid data races.
@@ -47,11 +48,6 @@ namespace STORAGE {
 		FileVersion version;				// The version of this file for MVCC
 		std::chrono::milliseconds timestamp;// The timestamp of last edit
 	};
-
-	static std::ostream& operator<<(std::ostream& out, const FileHeader &obj) {
-		out << "Name: " << obj.name << "\nSize: " << obj.size << "\nNext: " << obj.next << "\nVersion: " << obj.version << "\nTimestamp: " << obj.timestamp.count();
-		return out;
-	}
 
 	struct FileDirectory {
 		// Data

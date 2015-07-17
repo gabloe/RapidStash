@@ -52,9 +52,6 @@ Filesystem structure:
 */
 
 namespace STORAGE {
-	class IO::Writer;
-    class IO::Reader;
-
 	/*
 	 *  Filesystem class
 	 *	Manages the filesystem on top of a memory mapped file.  Provides RAII style concurrency control
@@ -62,10 +59,10 @@ namespace STORAGE {
 	 *  likely result in unpredictable behavior.  A random access reader and writer class is provided.
 	 */
 	class Filesystem {
-	public:
 		friend class IO::Writer;
 		friend class IO::Reader;
 
+	public:
 		Filesystem(const char* fname);
 		void shutdown(int code = SUCCESS);
 		File select(std::string);
