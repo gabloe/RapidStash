@@ -140,6 +140,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="FileIOCommon.h" />
     <ClInclude Include="Filereader.h" />
     <ClInclude Include="Filesystem.h" />
     <ClInclude Include="FilesystemCommon.h" />

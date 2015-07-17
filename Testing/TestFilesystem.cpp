@@ -1,7 +1,7 @@
-
-
 #include "Filesystem.h"
 #include "Logging.h"
+#include "Filereader.h"
+#include "Filewriter.h"
 
 #define VECTOR 0
 
@@ -110,7 +110,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 
 
 int main() {
-	std::srand(std::time(NULL));
+	std::srand((unsigned int)std::time(NULL));
 #if !LOGGING
 	std::cout << "Working..." << std::endl;
 #endif

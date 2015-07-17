@@ -12,19 +12,11 @@
 namespace STORAGE {
 	// Atomic data.  Should avoid data races.
 	static std::thread::id nobody;											// Reset for lock ownership
-	static std::atomic<size_t> bytesWritten;								// Count of number of bytes written
-	static std::atomic<size_t> numWrites;									// Count of number of write operations
-	static std::atomic<size_t> bytesRead;									// Count of number of bytes read
-	static std::atomic<size_t> numReads;									// Count of number of read operations
-	static std::atomic<double> writeTime;									// Sum of write durations
-	static std::atomic<double> readTime;									// Sum of read durations
-
 																			// A file is just am index into an internal array.
 	static std::mutex dirLock;		// If we modify anything in the file directory, it must be atomic.
 	static std::mutex insertGuard;	// Protect file directory info during inserts
 
 	static const size_t MAXFILES = 2 << 19; // 1MB entries at 8 bytes per entry == 8MB file directory
-	static bool timingEnabled = true;
 
 	// Lock type are either exclusive for both reads and writes (WRITE lock) or
 	// nonexclusive for reads only (READ lock).
@@ -96,11 +88,6 @@ namespace STORAGE {
 	enum ThroughputType {
 		WRITE,
 		READ
-	};
-
-	enum StartLocation {
-		BEGIN,
-		END
 	};
 }
 

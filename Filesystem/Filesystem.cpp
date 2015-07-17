@@ -7,15 +7,16 @@
 
 #include "Filesystem.h"
 #include "Filereader.h"
+#include "FileIOCommon.h"
 
 // Constructor
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
-	bytesWritten = 0;
-	bytesRead = 0;
-	numWrites = 0;
-	numReads = 0;
-	writeTime = 0;
-	readTime = 0;
+	IO::bytesWritten = 0;
+	IO::bytesRead = 0;
+	IO::numWrites = 0;
+	IO::numReads = 0;
+	IO::writeTime = 0;
+	IO::readTime = 0;
 
 	// Set up file directory if the backing file is new.
 	if (file.isNew()) {
@@ -279,17 +280,17 @@ bool STORAGE::Filesystem::exists(std::string name) {
 
 long double STORAGE::Filesystem::getThroughput(CountType ctype) {
 	if (ctype == NUMWRITES) {
-		return numWrites.load() / writeTime.load();
+		return IO::numWrites.load() / IO::writeTime.load();
 	} else if (ctype == BYTESWRITTEN) {
-		return bytesWritten.load() / writeTime.load();
+		return IO::bytesWritten.load() / IO::writeTime.load();
 	} else if (ctype == NUMREADS) {
-		return numReads.load() / readTime.load();
+		return IO::numReads.load() / IO::readTime.load();
 	} else if (ctype == BYTESREAD) {
-		return bytesRead.load() / readTime.load();
+		return IO::bytesRead.load() / IO::readTime.load();
 	} else if (ctype == WRITETIME) {
-		return writeTime.load();
+		return IO::writeTime.load();
 	} else if (ctype == READTIME) {
-		return readTime.load();
+		return IO::readTime.load();
 	} else {
 		return 0.0;
 	}
@@ -297,13 +298,13 @@ long double STORAGE::Filesystem::getThroughput(CountType ctype) {
 
 size_t STORAGE::Filesystem::count(CountType type) {
 	if (type == BYTESWRITTEN) {
-		return bytesWritten.load();
+		return IO::bytesWritten.load();
 	} else if (type == NUMWRITES) {
-		return numWrites.load();
+		return IO::numWrites.load();
 	} else if (type == BYTESREAD) {
-		return bytesRead.load();
+		return IO::bytesRead.load();
 	} else if (type == NUMREADS) {
-		return numReads.load();
+		return IO::numReads.load();
 	} else if (type == FILES) {
 		return dir->numFiles;
 	} else {
@@ -367,12 +368,12 @@ STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 	return directory;
 }
 
-STORAGE::Writer STORAGE::Filesystem::getWriter(File f) {
-	return STORAGE::Writer(this, f);
+STORAGE::IO::Writer STORAGE::Filesystem::getWriter(File f) {
+	return IO::Writer(this, f);
 }
 
-STORAGE::Reader STORAGE::Filesystem::getReader(File f) {
-	return STORAGE::Reader(this, f);
+STORAGE::IO::Reader STORAGE::Filesystem::getReader(File f) {
+	return IO::Reader(this, f);
 }
 
 STORAGE::FileHeader STORAGE::Filesystem::getHeader(File f) {

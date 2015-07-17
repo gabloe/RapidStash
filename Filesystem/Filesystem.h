@@ -13,6 +13,7 @@
 #include "Logging.h"
 #include "Filewriter.h"
 #include "Filereader.h"
+#include "FileIOCommon.h"
 
 #include <cstring>
 #include <array>
@@ -51,9 +52,8 @@ Filesystem structure:
 */
 
 namespace STORAGE {
-	class Filesystem;
-	class Writer;
-    class Reader;
+	class IO::Writer;
+    class IO::Reader;
 
 	/*
 	 *  Filesystem class
@@ -63,8 +63,8 @@ namespace STORAGE {
 	 */
 	class Filesystem {
 	public:
-		friend class Writer;
-		friend class Reader;
+		friend class IO::Writer;
+		friend class IO::Reader;
 
 		Filesystem(const char* fname);
 		void shutdown(int code = SUCCESS);
@@ -72,14 +72,14 @@ namespace STORAGE {
 		void lock(File, LockType);
 		void unlock(File, LockType);
 		FileHeader getHeader(File);
-		Writer getWriter(File);
-		Reader getReader(File);
+		IO::Writer getWriter(File);
+		IO::Reader getReader(File);
 		size_t count(CountType);
 		long double getThroughput(CountType);
 		bool exists(std::string);
 		void checkFreeList();
 
-	private:
+	protected:
 		DynamicMemoryMappedFile file;
 		void writeFileDirectory(FileDirectory *);
 		FileDirectory *readFileDirectory();
@@ -94,22 +94,6 @@ namespace STORAGE {
 
 		// For quick lookups, map filenames to spot in meta table.
 		std::map<std::string, File> lookup;
-	};
-
-
-	/*
-	*  Exceptions!
-	*/
-	class SeekOutOfBoundsException : public std::exception {
-		virtual const char* what() const throw() {
-			return "Attempted to seek beyond the end of the file or before the beginning of the file.";
-		}
-	};
-
-	class ReadOutOfBoundsException : public std::exception {
-		virtual const char* what() const throw() {
-			return "Attempted to read beyond the end of the file or before the beginning of the file.";
-		}
 	};
 }
 

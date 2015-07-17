@@ -5,11 +5,11 @@
 /*
 *  File writer utility class
 */
-FilePosition STORAGE::Writer::tell() {
+FilePosition STORAGE::IO::Writer::tell() {
 	return position;
 }
 
-void STORAGE::Writer::seek(off_t pos, StartLocation start) {
+void STORAGE::IO::Writer::seek(off_t pos, StartLocation start) {
 	FilePosition &loc = fs->dir->files[file];
 	FileSize &len = fs->dir->headers[file].size;
 
@@ -27,7 +27,7 @@ void STORAGE::Writer::seek(off_t pos, StartLocation start) {
 	}
 }
 
-void STORAGE::Writer::write(const char *data, FileSize size) {
+void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 	std::chrono::time_point<std::chrono::steady_clock> start;
 	if (timingEnabled) {
 		start = std::chrono::high_resolution_clock::now();
@@ -46,12 +46,12 @@ void STORAGE::Writer::write(const char *data, FileSize size) {
 		// If we are writing somewhere in the middle of the file, we have to copy over some of the beginning
 		// of the old file.
 		if (position > 0) {
-			char *chunk = fs->file.raw_read(oldLoc + FileHeader::SIZE, position);
-			fs->file.raw_write(chunk, position, newLoc + FileHeader::SIZE);
+			char *chunk = fs->file.raw_read(oldLoc + STORAGE::FileHeader::SIZE, position);
+			fs->file.raw_write(chunk, position, newLoc + STORAGE::FileHeader::SIZE);
 		}
 
 		// Write the rest of the data
-		fs->file.raw_write(data, size, newLoc + position + FileHeader::SIZE);
+		fs->file.raw_write(data, size, newLoc + position + STORAGE::FileHeader::SIZE);
 	}
 	else {
 		// If we aren't using MVCC and the old file size is accommodating just update metadata in directory
@@ -61,10 +61,10 @@ void STORAGE::Writer::write(const char *data, FileSize size) {
 		fs->writeHeader(file);
 
 		// Write the data
-		fs->file.raw_write(data, size, oldLoc + position + FileHeader::SIZE);
+		fs->file.raw_write(data, size, oldLoc + position + STORAGE::FileHeader::SIZE);
 	}
 
-	bytesWritten += size + FileHeader::SIZE;
+	bytesWritten += size + STORAGE::FileHeader::SIZE;
 	numWrites++;
 
 	if (timingEnabled) {

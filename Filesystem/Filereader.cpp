@@ -5,11 +5,11 @@
 /*
 *  File reader utility class
 */
-FilePosition STORAGE::Reader::tell() {
+FilePosition STORAGE::IO::Reader::tell() {
 	return position;
 }
 
-void STORAGE::Reader::seek(off_t pos, StartLocation start) {
+void STORAGE::IO::Reader::seek(off_t pos, StartLocation start) {
 	FilePosition &loc = fs->dir->files[file];
 	FileSize &len = fs->dir->headers[file].size;
 
@@ -27,7 +27,7 @@ void STORAGE::Reader::seek(off_t pos, StartLocation start) {
 	}
 }
 
-char *STORAGE::Reader::read() {
+char *STORAGE::IO::Reader::read() {
 	FileSize &size = fs->dir->headers[file].size;
 
 	char *buffer = NULL;
@@ -47,13 +47,13 @@ char *STORAGE::Reader::read() {
 	return buffer;
 }
 
-char *STORAGE::Reader::read(FileSize amt) {
+char *STORAGE::IO::Reader::read(FileSize amt) {
 	std::chrono::time_point<std::chrono::steady_clock> start;
 	if (timingEnabled) {
 		start = std::chrono::high_resolution_clock::now();
 	}
 
-	FileHeader header = fs->dir->headers[file];
+	STORAGE::FileHeader header = fs->dir->headers[file];
 	FilePosition loc;
 	FileSize size;
 
@@ -72,9 +72,9 @@ char *STORAGE::Reader::read(FileSize amt) {
 		throw ReadOutOfBoundsException();
 	}
 
-	char *data = fs->file.raw_read(loc + position + FileHeader::SIZE, amt);
+	char *data = fs->file.raw_read(loc + position + STORAGE::FileHeader::SIZE, amt);
 
-	bytesRead += amt + FileHeader::SIZE;
+	bytesRead += amt + STORAGE::FileHeader::SIZE;
 	numReads++;
 
 	if (timingEnabled) {

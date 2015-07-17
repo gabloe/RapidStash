@@ -1,5 +1,5 @@
 /*
-*  common.h
+*  RapidStashCommon.h
 *  Extra definitions that don't really beong anywhere else
 *
 *  Written by: Gabriel J. Loewen
