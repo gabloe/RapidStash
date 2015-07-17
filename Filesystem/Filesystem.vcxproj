@@ -116,7 +116,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\Logging;..\mman-win32;..\MemoryMappedFile;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\Logging;..\mman-win32;..\MemoryMappedFile;..\RapidStash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
@@ -127,7 +127,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Filereader.cpp" />
     <ClCompile Include="Filesystem.cpp" />
+    <ClCompile Include="Filewriter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MemoryMappedFile\MemoryMappedFile.vcxproj">
@@ -138,7 +140,10 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Filereader.h" />
     <ClInclude Include="Filesystem.h" />
+    <ClInclude Include="FilesystemCommon.h" />
+    <ClInclude Include="Filewriter.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -24,7 +24,7 @@ int ftruncate(int, size_t);
 #include <math.h>
 #include <fcntl.h>
 #include <algorithm>
-#include "common.h"
+#include "RapidStashCommon.h"
 #include <iostream>
 #include <string>
 #include <cstring>

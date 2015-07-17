@@ -47,7 +47,7 @@ void bar(STORAGE::Filesystem *f, int id) {
 		auto reader = f->getReader(file);
 
 		// Read lots of data
-		f->lock(file, STORAGE::READLOCK);
+		f->lock(file, STORAGE::WRITELOCK);
 		{
 			char *d = reader.read();
 #if EXTRATESTING
@@ -64,7 +64,7 @@ void bar(STORAGE::Filesystem *f, int id) {
 #endif
 			free(d);
 		}
-		f->unlock(file, STORAGE::READLOCK);
+		f->unlock(file, STORAGE::WRITELOCK);
 		n.str(std::string());
 	}
 }
@@ -108,6 +108,7 @@ void foo(STORAGE::Filesystem *f, int id) {
 	return;
 }
 
+
 int main() {
 	std::srand(std::time(NULL));
 #if !LOGGING
@@ -130,16 +131,16 @@ int main() {
 #endif
 	}
 
-	for (auto& th : writers) {
-		th.join();
-	}
-
 	for (int i = 0; i < NumThreads; ++i) {
 #if VECTOR
 		readers.push_back(std::thread(bar, &f, i));
 #else
-		readers[i] = std::thread(bar, &f, i);
+		readers[i] = std::thread(foo, &f, i);
 #endif
+	}
+
+	for (auto& th : writers) {
+		th.join();
 	}
 
 	for (auto& th : readers) {

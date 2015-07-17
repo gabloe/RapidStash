@@ -5,8 +5,8 @@
 *  Written by: Gabriel J. Loewen
 */
 
-#ifndef _COMMON_H_
-#define _COMMON_H_
+#ifndef _RAPIDSTASHCOMMON_H_
+#define _RAPIDSTASHCOMMON_H_
 #pragma once
 
 #include <sys/stat.h>
