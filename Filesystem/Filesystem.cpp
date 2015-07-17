@@ -200,7 +200,7 @@ File STORAGE::Filesystem::select(std::string fname) {
 }
 
 // Lock the file for either read or write
-void STORAGE::Filesystem::lock(File file, LockType type) {
+void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread " << id << " is locking " << file;
@@ -214,14 +214,14 @@ void STORAGE::Filesystem::lock(File file, LockType type) {
 			fl.cond.wait(lk, [&] 
 			{
 				// If we want write (exclusive) access, there must not be any unlocked readers
-				bool writeRequest = !fl.lock && type == WRITELOCK && fl.readers == 0;
+				bool writeRequest = !fl.lock && type == IO::WRITELOCK && fl.readers == 0;
 
 				// If we want read (non-exclusive) access, there must not be any writers
-				bool readRequest = !fl.lock && type == READLOCK && fl.writers == 0;
+				bool readRequest = !fl.lock && type == IO::READLOCK && fl.writers == 0;
 
-				return writeRequest || readRequest || (MVCC && type == READLOCK && dir->headers[file].version > 1);
+				return writeRequest || readRequest || (MVCC && type == IO::READLOCK && dir->headers[file].version > 1);
 			});
-		if (type == WRITELOCK) {
+		if (type == IO::WRITELOCK) {
 			fl.lock = true;
 			fl.tid = id;
 			fl.writers++;
@@ -232,7 +232,7 @@ void STORAGE::Filesystem::lock(File file, LockType type) {
 	lk.unlock();
 }
 
-void STORAGE::Filesystem::unlock(File file, LockType type) {
+void STORAGE::Filesystem::unlock(File file, IO::LockType type) {
 	std::thread::id id = std::this_thread::get_id();
 	std::ostringstream os;
 	os << "Thread " << id << " is unlocking " << file;
@@ -244,15 +244,15 @@ void STORAGE::Filesystem::unlock(File file, LockType type) {
 		// Wait until the file is actually locked and the current thread is the owner of the lock
 		fl.cond.wait(lk, [&] 
 			{
-				bool writeRequest = type == WRITELOCK && fl.lock && fl.tid == id;
-				bool readRequest = type == READLOCK;
-				return writeRequest || readRequest || (MVCC && type == READLOCK && dir->headers[file].version > 1);
+				bool writeRequest = type == IO::WRITELOCK && fl.lock && fl.tid == id;
+				bool readRequest = type == IO::READLOCK;
+				return writeRequest || readRequest || (MVCC && type == IO::READLOCK && dir->headers[file].version > 1);
 			});
-		if (type == WRITELOCK) {
+		if (type == IO::WRITELOCK) {
 			fl.lock = false;
 			fl.tid = nobody;
 			fl.writers--;
-		} else if (type == READLOCK) {
+		} else if (type == IO::READLOCK) {
 			fl.readers--;
 		}
 	}

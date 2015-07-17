@@ -19,13 +19,6 @@ namespace STORAGE {
 
 	static const size_t MAXFILES = 2 << 19; // 1MB entries at 8 bytes per entry == 8MB file directory
 
-	// Lock type are either exclusive for both reads and writes (WRITE lock) or
-	// nonexclusive for reads only (READ lock).
-	enum LockType {
-		READLOCK,
-		WRITELOCK
-	};
-
 	struct FileLock {
 		bool lock;						// The exclusive lock status of the file
 		std::condition_variable cond;	// Condition variable to wait on

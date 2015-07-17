@@ -10,20 +10,19 @@ FilePosition STORAGE::IO::Writer::tell() {
 }
 
 void STORAGE::IO::Writer::seek(off_t pos, StartLocation start) {
-	FilePosition &loc = fs->dir->files[file];
 	FileSize &len = fs->dir->headers[file].size;
 
 	if (start == BEGIN) {
 		if (pos > len || pos < 0) {
 			throw SeekOutOfBoundsException();
 		}
-		position = loc + pos;
+		position = pos;
 	}
 	else if (start == END) {
 		if (len + pos > len || len + pos < 0) {
 			throw SeekOutOfBoundsException();
 		}
-		position = loc + len + pos;
+		position = len + pos;
 	}
 }
 

@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\MemoryMappedFile\RapidStashCommon.h">
+    <ClInclude Include="RapidStashCommon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

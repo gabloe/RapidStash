@@ -16,13 +16,13 @@ namespace STORAGE{
 		*/
 		class Writer {
 		public:
-			Writer(STORAGE::Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
+			Writer(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
 			void seek(off_t, StartLocation);
 			void write(const char *, FileSize);
 			FilePosition tell();
 
 		private:
-			STORAGE::Filesystem *fs;
+			Filesystem *fs;
 			File file;
 			FilePosition position;
 		};

@@ -66,8 +66,8 @@ namespace STORAGE {
 		Filesystem(const char* fname);
 		void shutdown(int code = SUCCESS);
 		File select(std::string);
-		void lock(File, LockType);
-		void unlock(File, LockType);
+		void lock(File, IO::LockType);
+		void unlock(File, IO::LockType);
 		FileHeader getHeader(File);
 		IO::Writer getWriter(File);
 		IO::Reader getReader(File);

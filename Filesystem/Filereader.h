@@ -17,14 +17,14 @@ namespace STORAGE {
 		*/
 		class Reader {
 		public:
-			Reader(STORAGE::Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
+			Reader(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
 			void seek(off_t, StartLocation);
 			char *read(FileSize);
 			char *read();
 			FilePosition tell();
 
 		private:
-			STORAGE::Filesystem *fs;
+			Filesystem *fs;
 			File file;
 			FilePosition position;
 		};

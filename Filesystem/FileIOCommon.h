@@ -6,6 +6,12 @@
 
 namespace STORAGE {
 	namespace IO {
+		// Lock type are either exclusive for both reads and writes (WRITE lock) or
+		// nonexclusive for reads only (READ lock).
+		enum LockType {
+			READLOCK,
+			WRITELOCK
+		};
 
 		// Statics used by the filesystem
 		static bool timingEnabled = true;

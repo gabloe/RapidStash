@@ -134,7 +134,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="TestFilesystem.cpp" />
+    <ClCompile Include="TestConcurentWrite.cpp" />
+    <ClCompile Include="Testing.cpp" />
+    <ClCompile Include="TestReadWrite.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Testing.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
