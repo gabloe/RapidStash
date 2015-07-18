@@ -29,7 +29,9 @@ std::string STORAGE::IO::Reader::readString() {
 
 std::string STORAGE::IO::Reader::readString(FileSize amt) {
 	char *buf = readRaw(amt);
-	return std::string(buf, amt);
+	std::string res(buf, amt);
+	free(buf);
+	return res;
 }
 
 char *STORAGE::IO::Reader::readRaw() {

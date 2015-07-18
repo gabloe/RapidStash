@@ -34,7 +34,6 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 		for (File i = 0; i < dir->numFiles; ++i) {
 			dir->headers[i] = readHeader(i);
 			std::string name(dir->headers[i].name);
-			std::cout << i << ": " << name << std::endl;
 			lookup[name] = i;
 		}
 	}
