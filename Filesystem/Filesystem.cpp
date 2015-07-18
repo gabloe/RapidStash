@@ -110,11 +110,11 @@ FilePosition STORAGE::Filesystem::relocateHeader(File oldFile, FileSize size) {
 
 	FileSize totalSize = size + FileHeader::SIZE;
 	FilePosition oldPosition = dir->files[oldFile];
-
+	FileHeader newHeader;
 	FilePosition newPosition = dir->nextRawSpot;
 	dir->nextRawSpot += totalSize;
 
-	FileHeader newHeader;
+	// Copy data into the new header
 	strcpy_s(newHeader.name, dir->headers[oldFile].name);
 	newHeader.size = size;
 	newHeader.virtualSize = size;
@@ -122,6 +122,7 @@ FilePosition STORAGE::Filesystem::relocateHeader(File oldFile, FileSize size) {
 	newHeader.next = oldPosition;
 	newHeader.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 	
+	// Write the header and set the directory info
 	writeHeader(newHeader, newPosition);
 	dir->headers[oldFile] = newHeader;
 	dir->files[oldFile] = newPosition;
@@ -135,6 +136,7 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 
 	FileSize totalSize = FileHeader::SIZE;
 	FilePosition position;
+	FileHeader header;
 
 	// The file index is returned to the caller...
 	File newFile = dir->nextSpot;
@@ -144,7 +146,7 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 		position = dir->nextRawSpot;
 		dir->nextRawSpot += totalSize;
 		dir->tempList = position;
-		dir->headers[newFile].next = 0;
+		header.next = 0;
 	} else {
 		FilePosition lst = dir->tempList;
 		FileHeader h;
@@ -165,25 +167,28 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 		} else {
 			position = dir->nextRawSpot;
 			dir->nextRawSpot += totalSize;
-			dir->headers[newFile].next = dir->tempList;
+			header.next = dir->tempList;
 			dir->tempList = position;
 		}
 	}
-	dir->numFiles++;
 
 	// Copy over some metadata
-	strcpy_s(dir->headers[newFile].name, name);
-	dir->headers[newFile].size = 0;
-	dir->headers[newFile].virtualSize = 0;
-	dir->headers[newFile].version = -1;  // The file is new, but we haven't written to it yet, so it's not even version 0
-	dir->headers[newFile].timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+	strcpy_s(header.name, name);
+	header.size = 0;
+	header.virtualSize = 0;
+	header.version = -1;  // The file is new, but we haven't written to it yet, so it's not even version 0
+	header.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+
+	// Write the header
+	writeHeader(header, position);
 
 	// Setup directory
 	dir->locks[newFile].lock = false;
+	dir->headers[newFile] = header;
 	dir->files[newFile] = position;
+	dir->numFiles++;
 
-	// Write the header
-	writeHeader(newFile);
+	// Add file to lookup
 	lookup[std::string(name)] = newFile;
 
 	return newFile;
@@ -191,8 +196,6 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 
 // Select a file from the filesystem to use.
 File STORAGE::Filesystem::select(std::string fname) {
-	//std::lock_guard<std::mutex> lk(dirLock);
-
 	bool fileExists = exists(fname);
 	File file;
 
@@ -223,18 +226,19 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 			fl.cond.wait(lk, [&] 
 			{
 				// If we want write (exclusive) access, there must not be any unlocked readers
-				bool writeRequest = !fl.lock && type == IO::WRITELOCK && fl.readers == 0;
+				bool writeRequest = !fl.lock && type == IO::EXCLUSIVE && fl.readers == 0;
 
 				// If we want read (non-exclusive) access, there must not be any writers
-				bool readRequest = !fl.lock && type == IO::READLOCK && fl.writers == 0;
+				bool readRequest = !fl.lock && type == IO::NONEXCLUSIVE && fl.writers == 0;
 
-				return writeRequest || readRequest;// || (MVCC && type == IO::READLOCK && dir->headers[file].version > 1);
+				return writeRequest || readRequest;
 			});
-		if (type == IO::WRITELOCK) {
+
+		if (type == IO::EXCLUSIVE) {
 			fl.lock = true;
 			fl.tid = id;
 			fl.writers++;
-		} else {
+		} else if (type == IO::NONEXCLUSIVE) {
 			fl.readers++;
 		}
 	}
@@ -253,15 +257,15 @@ void STORAGE::Filesystem::unlock(File file, IO::LockType type) {
 		// Wait until the file is actually locked and the current thread is the owner of the lock
 		fl.cond.wait(lk, [&] 
 			{
-				bool writeRequest = type == IO::WRITELOCK && fl.lock && fl.tid == id;
-				bool readRequest = type == IO::READLOCK;
-				return writeRequest || readRequest;// || (MVCC && type == IO::READLOCK && dir->headers[file].version > 1);
+				bool writeRequest = type == IO::EXCLUSIVE && fl.lock && fl.tid == id;
+				bool readRequest = type == IO::NONEXCLUSIVE;
+				return writeRequest || readRequest;
 			});
-		if (type == IO::WRITELOCK) {
+		if (type == IO::EXCLUSIVE) {
 			fl.lock = false;
 			fl.tid = nobody;
 			fl.writers--;
-		} else if (type == IO::READLOCK) {
+		} else if (type == IO::NONEXCLUSIVE) {
 			fl.readers--;
 		}
 	}
@@ -287,7 +291,7 @@ bool STORAGE::Filesystem::exists(std::string name) {
 	return lookup.find(name) != lookup.end();
 }
 
-long double STORAGE::Filesystem::getThroughput(CountType ctype) {
+double STORAGE::Filesystem::getThroughput(CountType ctype) {
 	if (ctype == NUMWRITES) {
 		return IO::numWrites.load() / IO::writeTime.load();
 	} else if (ctype == BYTESWRITTEN) {

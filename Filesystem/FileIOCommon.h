@@ -12,8 +12,8 @@ namespace STORAGE {
 		// Lock type are either exclusive for both reads and writes (WRITE lock) or
 		// nonexclusive for reads only (READ lock).
 		enum LockType {
-			READLOCK,
-			WRITELOCK
+			NONEXCLUSIVE,
+			EXCLUSIVE
 		};
 
 		// Statics used by the filesystem
@@ -31,6 +31,7 @@ namespace STORAGE {
 			CURSOR
 		};
 
+		// Base class for all file IO classes
 		class FileIO {
 		public:
 			FileIO(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}

@@ -6,7 +6,7 @@
 *  Written by: Gabriel J. Loewen
 */
 
-#include "DynamicMemoryMappedFile.h"
+#include "MMAPFile.h"
 #include "Logging.h"
 
 // Trying to support cross compatibility

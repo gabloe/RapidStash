@@ -1,3 +1,9 @@
+#ifdef MMAN_EXPORTS
+#define MMANDLL_API __declspec(dllexport) 
+#else
+#define MMANDLL_API __declspec(dllimport) 
+#endif
+
 /*
  * sys/mman.h
  * mman-win32
@@ -42,12 +48,12 @@ extern "C" {
 #define MS_SYNC         2
 #define MS_INVALIDATE   4
 
-void*   mmap(void *addr, size_t len, int prot, int flags, int fildes, off_t off);
-int     munmap(void *addr, size_t len);
-int     mprotect(void *addr, size_t len, int prot);
-int     msync(void *addr, size_t len, int flags);
-int     mlock(const void *addr, size_t len);
-int     munlock(const void *addr, size_t len);
+MMANDLL_API		void*   mmap(void *addr, size_t len, int prot, int flags, int fildes, off_t off);
+MMANDLL_API		int     munmap(void *addr, size_t len);
+MMANDLL_API		int     mprotect(void *addr, size_t len, int prot);
+MMANDLL_API		int     msync(void *addr, size_t len, int flags);
+MMANDLL_API		int     mlock(const void *addr, size_t len);
+MMANDLL_API		int     munlock(const void *addr, size_t len);
 
 #ifdef __cplusplus
 };

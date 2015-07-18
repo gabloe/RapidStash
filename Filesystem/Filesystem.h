@@ -9,7 +9,7 @@
 #define _FILESYSTEM_H_
 #pragma once
 
-#include "DynamicMemoryMappedFile.h"
+#include "MMAPFile.h"
 #include "Logging.h"
 #include "Filewriter.h"
 #include "Filereader.h"
@@ -73,7 +73,7 @@ namespace STORAGE {
 		IO::Writer getWriter(File);
 		IO::Reader getReader(File);
 		size_t count(CountType);
-		long double getThroughput(CountType);
+		double getThroughput(CountType);
 		bool exists(std::string);
 		void checkFreeList();
 

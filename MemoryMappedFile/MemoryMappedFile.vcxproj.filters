@@ -15,12 +15,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="DynamicMemoryMappedFile.h">
+    <ClInclude Include="MMAPFile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DynamicMemoryMappedFile.cpp">
+    <ClCompile Include="MMAPFile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

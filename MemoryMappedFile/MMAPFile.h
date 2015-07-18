@@ -1,3 +1,9 @@
+#ifdef MMAPFILE_EXPORTS
+#define MMAPFILEDLL_API __declspec(dllexport) 
+#else
+#define MMAPFILEDLL_API __declspec(dllimport) 
+#endif
+
 /*
 *  DynamicMemoryMappedFile.h
 *  Wraps memory mapped file creation with dynamic growth.  Manages when to grow the underlying file and provides
@@ -41,7 +47,6 @@ static char SANITY[] = { 0x0,0x0,0xd,0x1,0xe,0x5,0x0,0xf,0xd,0x0,0x0,0xd,0xa,0xd
 static std::mutex growthLock;
 static std::condition_variable cvWrite;
 static std::condition_variable cvRead;
-static std::atomic<size_t> actualSize;
 static bool growing;
 
 // Limit the overall size of the file to 4GB for compatibility reasons
@@ -56,27 +61,25 @@ namespace STORAGE {
 
 	public:
 		// Constructors
-		DynamicMemoryMappedFile() = delete;  // There should not be a default constructor.
-		DynamicMemoryMappedFile(const char*);
+		MMAPFILEDLL_API DynamicMemoryMappedFile() = delete;  // There should not be a default constructor.
+		MMAPFILEDLL_API DynamicMemoryMappedFile(const char*);
 
 		/*
 		 *Cleanup!
 		 */
-		int shutdown(const int = SUCCESS);
+		MMAPFILEDLL_API int shutdown(const int = SUCCESS);
 
 		/*
 		 * Write raw data to the filesystem.
 		 */
-		int raw_write(const char*, size_t, size_t);
+		MMAPFILEDLL_API int raw_write(const char*, size_t, size_t);
 
 		/*
 		 * Read raw data from the filesystem.
 		 */
-		char *raw_read(size_t, size_t, size_t = HEADER_SIZE);
+		MMAPFILEDLL_API char *raw_read(size_t, size_t, size_t = HEADER_SIZE);
 
-		void shrink(size_t);
-
-		bool isNew() {
+		MMAPFILEDLL_API bool isNew() {
 			return isNewFile;
 		}
 
@@ -94,11 +97,11 @@ namespace STORAGE {
 		/*
 		 *Private methods
 		 */
-		int getFileDescriptor(const char*, bool = true);
-		void writeHeader();
-		char *readHeader();
-		bool sanityCheck(const char*);
-		void grow(size_t);
+		MMAPFILEDLL_API int getFileDescriptor(const char*, bool = true);
+		MMAPFILEDLL_API void writeHeader();
+		MMAPFILEDLL_API char *readHeader();
+		MMAPFILEDLL_API bool sanityCheck(const char*);
+		MMAPFILEDLL_API void grow(size_t);
 	};
 }
 
