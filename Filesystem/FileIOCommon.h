@@ -3,8 +3,11 @@
 #pragma once
 #include <atomic>
 #include <exception>
+#include "FilesystemCommon.h"
 
 namespace STORAGE {
+	class Filesystem; //Forward declare
+
 	namespace IO {
 		// Lock type are either exclusive for both reads and writes (WRITE lock) or
 		// nonexclusive for reads only (READ lock).
@@ -24,7 +27,19 @@ namespace STORAGE {
 
 		enum StartLocation {
 			BEGIN,
-			END
+			END,
+			CURSOR
+		};
+
+		class FileIO {
+		public:
+			FileIO(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
+			void seek(off_t pos, StartLocation start);
+			FilePosition tell();
+		protected:
+			Filesystem *fs;
+			File file;
+			FilePosition position;
 		};
 
 		/*

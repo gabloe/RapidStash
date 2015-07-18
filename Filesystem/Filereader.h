@@ -15,18 +15,15 @@ namespace STORAGE {
 		*  Reader class.
 		*  Gives the user access to read a specific file.  The user must perform all locking/unlocking if necessary
 		*/
-		class Reader {
+		class Reader : public FileIO {
 		public:
-			Reader(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
-			void seek(off_t, StartLocation);
-			char *read(FileSize);
-			char *read();
-			FilePosition tell();
-
-		private:
-			Filesystem *fs;
-			File file;
-			FilePosition position;
+			Reader(Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
+			int readInt();
+			char readChar();
+			std::string readString(FileSize);
+			std::string readString();
+			char *readRaw(FileSize);
+			char *readRaw();
 		};
 	}
 }

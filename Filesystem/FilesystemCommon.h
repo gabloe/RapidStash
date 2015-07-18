@@ -32,12 +32,13 @@ namespace STORAGE {
 	struct FileHeader {
 		// Statics
 		static const int MAXNAMELEN = 32;	// Allow for up to 32 character long names
-		static const size_t SIZE = MAXNAMELEN + sizeof(FilePosition) + sizeof(FileSize) + sizeof(FileVersion) + sizeof(std::chrono::milliseconds);
+		static const size_t SIZE = MAXNAMELEN + sizeof(FilePosition) + 2 * sizeof(FileSize) + sizeof(FileVersion) + sizeof(std::chrono::milliseconds);
 
 		// Data
 		char name[MAXNAMELEN];				// The file name
 		FilePosition next;					// Used in the free list and in MVCC
 		FileSize size;						// The number of bytes actually used for the file
+		FileSize virtualSize;				// The actual size available to the file
 		FileVersion version;				// The version of this file for MVCC
 		std::chrono::milliseconds timestamp;// The timestamp of last edit
 	};

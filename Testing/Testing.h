@@ -5,15 +5,16 @@
 #include <functional>
 #include <iostream>
 #include <string>
+#include <Filesystem.h>
 
-int TestReadWrite();
-int TestConcurrentWrite();
+int TestReadWrite(STORAGE::Filesystem *);
+int TestConcurrentWrite(STORAGE::Filesystem *);
 
 typedef std::function<void()> TestWrapper_t;
 
-static void TestWrapper(std::string name, std::function<int()> fn) {
+static void TestWrapper(std::string name, STORAGE::Filesystem *fs, std::function<int(STORAGE::Filesystem*)> fn) {
 	std::cout << name << ": ";
-	int res = fn();
+	int res = fn(fs);
 	if (res == 0) {
 		std::cout << "PASSED!";
 	} else {

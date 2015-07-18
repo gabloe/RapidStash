@@ -34,6 +34,7 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 		for (File i = 0; i < dir->numFiles; ++i) {
 			dir->headers[i] = readHeader(i);
 			std::string name(dir->headers[i].name);
+			std::cout << i << ": " << name << std::endl;
 			lookup[name] = i;
 		}
 	}
@@ -49,6 +50,8 @@ STORAGE::FileHeader STORAGE::Filesystem::readHeader(FilePosition pos) {
 	memcpy(&header.next, buffer + offset, sizeof(FilePosition));
 	offset += sizeof(FilePosition);
 	memcpy(&header.size, buffer + offset, sizeof(FileSize));
+	offset += sizeof(FileSize);
+	memcpy(&header.virtualSize, buffer + offset, sizeof(FileSize));
 	offset += sizeof(FileSize);
 	memcpy(&header.version, buffer + offset, sizeof(FileVersion));
 	offset += sizeof(FileVersion);
@@ -76,6 +79,8 @@ void STORAGE::Filesystem::writeHeader(FileHeader header, FilePosition pos) {
 	memcpy(buffer + offset, &header.next, sizeof(FilePosition));
 	offset += sizeof(FilePosition);
 	memcpy(buffer + offset, reinterpret_cast<char*>(&header.size), sizeof(FileSize));
+	offset += sizeof(FileSize);
+	memcpy(buffer + offset, reinterpret_cast<char*>(&header.virtualSize), sizeof(FileSize));
 	offset += sizeof(FileSize);
 	memcpy(buffer + offset, reinterpret_cast<char*>(&header.version), sizeof(FileVersion));
 	offset += sizeof(FileVersion);
@@ -109,14 +114,18 @@ FilePosition STORAGE::Filesystem::relocateHeader(File oldFile, FileSize size) {
 
 	FilePosition newPosition = dir->nextRawSpot;
 	dir->nextRawSpot += totalSize;
+
+	FileHeader newHeader;
+	strcpy_s(newHeader.name, dir->headers[oldFile].name);
+	newHeader.size = size;
+	newHeader.virtualSize = size;
+	newHeader.version = dir->headers[oldFile].version + 1;
+	newHeader.next = oldPosition;
+	newHeader.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+	
+	writeHeader(newHeader, newPosition);
+	dir->headers[oldFile] = newHeader;
 	dir->files[oldFile] = newPosition;
-
-	dir->headers[oldFile].size = size;
-	dir->headers[oldFile].version++;
-	dir->headers[oldFile].next = oldPosition;
-	dir->headers[oldFile].timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-
-	writeHeader(oldFile);
 
 	return newPosition;
 }
@@ -166,6 +175,7 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 	// Copy over some metadata
 	strcpy_s(dir->headers[newFile].name, name);
 	dir->headers[newFile].size = 0;
+	dir->headers[newFile].virtualSize = 0;
 	dir->headers[newFile].version = -1;  // The file is new, but we haven't written to it yet, so it's not even version 0
 	dir->headers[newFile].timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 
@@ -210,7 +220,7 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 	FileLock &fl = dir->locks[file];
 	std::unique_lock<std::mutex> lk(dirLock);
 	{
-		// Wait until the file is available (not locked)
+			// Wait until the file is available (not locked)
 			fl.cond.wait(lk, [&] 
 			{
 				// If we want write (exclusive) access, there must not be any unlocked readers
@@ -219,7 +229,7 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 				// If we want read (non-exclusive) access, there must not be any writers
 				bool readRequest = !fl.lock && type == IO::READLOCK && fl.writers == 0;
 
-				return writeRequest || readRequest || (MVCC && type == IO::READLOCK && dir->headers[file].version > 1);
+				return writeRequest || readRequest;// || (MVCC && type == IO::READLOCK && dir->headers[file].version > 1);
 			});
 		if (type == IO::WRITELOCK) {
 			fl.lock = true;
@@ -246,7 +256,7 @@ void STORAGE::Filesystem::unlock(File file, IO::LockType type) {
 			{
 				bool writeRequest = type == IO::WRITELOCK && fl.lock && fl.tid == id;
 				bool readRequest = type == IO::READLOCK;
-				return writeRequest || readRequest || (MVCC && type == IO::READLOCK && dir->headers[file].version > 1);
+				return writeRequest || readRequest;// || (MVCC && type == IO::READLOCK && dir->headers[file].version > 1);
 			});
 		if (type == IO::WRITELOCK) {
 			fl.lock = false;

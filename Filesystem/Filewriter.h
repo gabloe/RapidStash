@@ -14,17 +14,10 @@ namespace STORAGE{
 		*  Writer class.
 		*  Gives the user access to write to a specific file.  The user must perform all locking/unlocking if necessary
 		*/
-		class Writer {
+		class Writer : public FileIO {
 		public:
-			Writer(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
-			void seek(off_t, StartLocation);
+			Writer(Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
 			void write(const char *, FileSize);
-			FilePosition tell();
-
-		private:
-			Filesystem *fs;
-			File file;
-			FilePosition position;
 		};
 	}
 }

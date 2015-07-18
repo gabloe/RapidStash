@@ -7,34 +7,37 @@
 /*
 *  File reader utility class
 */
-FilePosition STORAGE::IO::Reader::tell() {
-	return position;
+int STORAGE::IO::Reader::readInt() {
+	char *buf = readRaw(sizeof(int));
+	int res;
+	memcpy(&res, buf, sizeof(int));
+	free(buf);
+	return res;
 }
 
-void STORAGE::IO::Reader::seek(off_t pos, StartLocation start) {
-	FilePosition &loc = fs->dir->files[file];
-	FileSize &len = fs->dir->headers[file].size;
-
-	if (start == BEGIN) {
-		if (pos > len || pos < 0) {
-			throw SeekOutOfBoundsException();
-		}
-		position = loc + pos;
-	}
-	else if (start == END) {
-		if (len + pos > len || len + pos < 0) {
-			throw SeekOutOfBoundsException();
-		}
-		position = loc + len + pos;
-	}
+char STORAGE::IO::Reader::readChar() {
+	char *buf = readRaw(1);
+	char res = buf[0];
+	free(buf);
+	return res;
 }
 
-char *STORAGE::IO::Reader::read() {
+std::string STORAGE::IO::Reader::readString() {
+	FileSize &size = fs->dir->headers[file].size;
+	return readString(size);
+}
+
+std::string STORAGE::IO::Reader::readString(FileSize amt) {
+	char *buf = readRaw(amt);
+	return std::string(buf, amt);
+}
+
+char *STORAGE::IO::Reader::readRaw() {
 	FileSize &size = fs->dir->headers[file].size;
 
 	char *buffer = NULL;
 	try {
-		buffer = read(size);
+		buffer = readRaw(size);
 	}
 	catch (ReadOutOfBoundsException) {
 		logEvent(ERROR, "Read out of bounds");
@@ -49,13 +52,13 @@ char *STORAGE::IO::Reader::read() {
 	return buffer;
 }
 
-char *STORAGE::IO::Reader::read(FileSize amt) {
+char *STORAGE::IO::Reader::readRaw(FileSize amt) {
 	std::chrono::time_point<std::chrono::system_clock> start;
 	if (timingEnabled) {
 		start = std::chrono::system_clock::now();
 	}
 
-	STORAGE::FileHeader header = fs->dir->headers[file];
+	STORAGE::FileHeader &header = fs->dir->headers[file];
 	FilePosition loc;
 	FileSize size;
 
@@ -63,8 +66,7 @@ char *STORAGE::IO::Reader::read(FileSize amt) {
 	if (MVCC && fs->dir->locks[file].lock && header.version > 0 && fs->dir->locks[file].tid != std::this_thread::get_id()) {
 		loc = header.next;
 		header = fs->readHeader(header.next);
-	}
-	else {
+	} else {
 		loc = fs->dir->files[file];
 	}
 	size = header.size;
@@ -74,10 +76,11 @@ char *STORAGE::IO::Reader::read(FileSize amt) {
 		throw ReadOutOfBoundsException();
 	}
 
-	char *data = fs->file.raw_read(loc + position + STORAGE::FileHeader::SIZE, amt);
+	char *data = fs->file.raw_read(loc + STORAGE::FileHeader::SIZE + position, amt);
 
-	bytesRead += amt + STORAGE::FileHeader::SIZE;
+	bytesRead += amt;
 	numReads++;
+	position += amt;
 
 	if (timingEnabled) {
 		auto end = std::chrono::system_clock::now();

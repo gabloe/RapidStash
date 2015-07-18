@@ -61,6 +61,7 @@ namespace STORAGE {
 	class Filesystem {
 		friend class IO::Writer;
 		friend class IO::Reader;
+		friend class IO::FileIO;
 
 	public:
 		Filesystem(const char* fname);
