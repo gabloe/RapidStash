@@ -1,13 +1,13 @@
+/*
+ * sys/mman.h
+ * mman-win32
+ */
+
 #ifdef MMAN_EXPORTS
 #define MMANDLL_API __declspec(dllexport) 
 #else
 #define MMANDLL_API __declspec(dllimport) 
 #endif
-
-/*
- * sys/mman.h
- * mman-win32
- */
 
 #ifndef _SYS_MMAN_H_
 #define _SYS_MMAN_H_

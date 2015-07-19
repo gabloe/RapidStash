@@ -17,6 +17,7 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 	IO::numReads = 0;
 	IO::writeTime = 0;
 	IO::readTime = 0;
+	MVCC = false;
 
 	// Set up file directory if the backing file is new.
 	if (file.isNew()) {
@@ -37,6 +38,14 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
 			lookup[name] = i;
 		}
 	}
+}
+
+void STORAGE::Filesystem::toggleMVCC() {
+	MVCC = !MVCC;
+}
+
+bool STORAGE::Filesystem::isMVCCEnabled() {
+	return MVCC;
 }
 
 STORAGE::FileHeader STORAGE::Filesystem::readHeader(FilePosition pos) {
@@ -225,13 +234,20 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 			// Wait until the file is available (not locked)
 			fl.cond.wait(lk, [&] 
 			{
+				// If we are writing in MVCC, we are going to write a new version, so let's unlock
+				// immediately
+				bool mvccWriteTest = MVCC && type == IO::EXCLUSIVE;
+
+				// If we are reading in MVCC and there is an old version we can read, unlock.
+				bool mvccReadTest = MVCC && type == IO::NONEXCLUSIVE && fl.lock && dir->headers[file].version > 0;
+
 				// If we want write (exclusive) access, there must not be any unlocked readers
-				bool writeRequest = !fl.lock && type == IO::EXCLUSIVE && fl.readers == 0;
+				bool writeTest = !fl.lock && type == IO::EXCLUSIVE && fl.readers == 0;
 
 				// If we want read (non-exclusive) access, there must not be any writers
-				bool readRequest = !fl.lock && type == IO::NONEXCLUSIVE && fl.writers == 0;
+				bool readTest = !fl.lock && type == IO::NONEXCLUSIVE && fl.writers == 0;
 
-				return writeRequest || readRequest;
+				return writeTest || readTest || mvccWriteTest || mvccReadTest;
 			});
 
 		if (type == IO::EXCLUSIVE) {
@@ -259,7 +275,7 @@ void STORAGE::Filesystem::unlock(File file, IO::LockType type) {
 			{
 				bool writeRequest = type == IO::EXCLUSIVE && fl.lock && fl.tid == id;
 				bool readRequest = type == IO::NONEXCLUSIVE;
-				return writeRequest || readRequest;
+				return writeRequest || readRequest || MVCC;
 			});
 		if (type == IO::EXCLUSIVE) {
 			fl.lock = false;

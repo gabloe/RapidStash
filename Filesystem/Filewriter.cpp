@@ -16,7 +16,7 @@ void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 	// If there is not enough excess spacel available, we must create a new file for this write
 	// This generates garbage that may eventually need to be cleaned up.
 	// OR if MVCC is enabled
-	if (size + position > fs->dir->headers[file].virtualSize || MVCC) {
+	if (size + position > fs->dir->headers[file].virtualSize || fs->isMVCCEnabled()) {
 		FilePosition newLoc = fs->relocateHeader(file, size + position);
 
 		// If we are writing somewhere in the middle of the file, we have to copy over some of the beginning

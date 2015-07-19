@@ -14,9 +14,6 @@
 #define SUCCESS 0
 #define FAILURE 1
 
-// Enable for multiversion concurrency control (currently borked)
-static bool MVCC = false;
-
 // Attempt at supporting cross compatibility with POSIX systems
 #if defined(linux) || defined(__linux) || defined(apple) || defined(__apple)
 #include <sys/types.h>

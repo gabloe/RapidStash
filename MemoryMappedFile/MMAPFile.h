@@ -1,9 +1,3 @@
-#ifdef MMAPFILE_EXPORTS
-#define MMAPFILEDLL_API __declspec(dllexport) 
-#else
-#define MMAPFILEDLL_API __declspec(dllimport) 
-#endif
-
 /*
 *  DynamicMemoryMappedFile.h
 *  Wraps memory mapped file creation with dynamic growth.  Manages when to grow the underlying file and provides
@@ -11,6 +5,12 @@
 *
 *  Written by: Gabriel J. Loewen
 */
+
+#ifdef MMAPFILE_EXPORTS
+#define MMAPFILEDLL_API __declspec(dllexport) 
+#else
+#define MMAPFILEDLL_API __declspec(dllimport) 
+#endif
 
 #ifndef _MEMORY_MAPPED_FILE_
 #define _MEMORY_MAPPED_FILE_
@@ -79,6 +79,9 @@ namespace STORAGE {
 		 */
 		MMAPFILEDLL_API char *raw_read(size_t, size_t, size_t = HEADER_SIZE);
 
+		/*
+		 * The file is new until it is written to for the first time
+		 */
 		MMAPFILEDLL_API bool isNew() {
 			return isNewFile;
 		}
@@ -97,11 +100,11 @@ namespace STORAGE {
 		/*
 		 *Private methods
 		 */
-		MMAPFILEDLL_API int getFileDescriptor(const char*, bool = true);
-		MMAPFILEDLL_API void writeHeader();
-		MMAPFILEDLL_API char *readHeader();
-		MMAPFILEDLL_API bool sanityCheck(const char*);
-		MMAPFILEDLL_API void grow(size_t);
+		int getFileDescriptor(const char*, bool = true);
+		void writeHeader();
+		char *readHeader();
+		bool sanityCheck(const char*);
+		void grow(size_t);
 	};
 }
 

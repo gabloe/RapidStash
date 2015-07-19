@@ -65,9 +65,9 @@ char *STORAGE::IO::Reader::readRaw(FileSize amt) {
 	FileSize size;
 
 	// If we are using MVCC and the file is locked, read an old version.
-	if (MVCC && fs->dir->locks[file].lock && header.version > 0 && fs->dir->locks[file].tid != std::this_thread::get_id()) {
+	if (fs->isMVCCEnabled() && fs->dir->locks[file].lock && header.version > 1 && fs->dir->locks[file].tid != std::this_thread::get_id()) {
 		loc = header.next;
-		header = fs->readHeader(header.next);
+		header = fs->readHeader(loc);
 	} else {
 		loc = fs->dir->files[file];
 	}

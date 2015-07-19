@@ -120,6 +120,7 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code) {
 	if (logOut.is_open()) {
 		logOut.close();
 	}
+
 	return code;
 }
 
