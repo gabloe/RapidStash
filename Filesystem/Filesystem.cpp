@@ -209,8 +209,6 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 
 // Select a file from the filesystem to use.
 File STORAGE::Filesystem::select(std::string fname) {
-	std::lock_guard<std::mutex> lk(dirLock);
-
 	bool fileExists = exists(fname);
 	File file;
 
