@@ -7,6 +7,8 @@
 /*
 *  File reader utility class
 */
+STORAGE::IO::Reader::Reader(STORAGE::Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
+
 int STORAGE::IO::Reader::readInt() {
 	char *buf = readRaw(sizeof(int));
 	int res;
@@ -65,13 +67,14 @@ char *STORAGE::IO::Reader::readRaw(FileSize amt) {
 	FileSize size;
 
 	// If we are using MVCC and the file is locked, read an old version.
-	if (fs->isMVCCEnabled() && fs->dir->locks[file].lock && header.version > 1 && fs->dir->locks[file].tid != std::this_thread::get_id()) {
+	if (fs->isMVCCEnabled() && fs->dir->locks[file].lock && header.version > 0 && fs->dir->locks[file].tid != std::this_thread::get_id()) {
 		loc = header.next;
 		header = fs->readHeader(loc);
 	} else {
 		loc = fs->dir->files[file];
 	}
 	size = header.size;
+	lastHeader = header;
 
 	// We don't want to be able to read beyond the last byte of the file.
 	if (position + amt > size) {

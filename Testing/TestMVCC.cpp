@@ -7,7 +7,8 @@
 #include <array>
 #include <thread>
 
-const int numThreads = 16;
+const int numThreads = 32;
+
 static bool failure = false;
 
 static std::string data[numThreads];
@@ -16,14 +17,15 @@ int TestMVCC(STORAGE::Filesystem *fs) {
 
 	for (int i = 0; i < numThreads; ++i) {
 		std::srand((unsigned int)std::time(NULL) + i);
-		data[i] = random_string(64);
+		data[i] = random_string(16);
 	}
 
 	fs->toggleMVCC();
+
 	std::array<std::thread, numThreads> writers;
 	std::array<std::thread, numThreads> readers;
 
-	// Start up some writers
+	// Start up some writers and writers
 	for (int i = 0; i < numThreads; ++i) {
 		writers[i] =
 			std::thread([fs, i] {
@@ -35,10 +37,7 @@ int TestMVCC(STORAGE::Filesystem *fs) {
 			}
 			fs->unlock(f, STORAGE::IO::EXCLUSIVE);
 		});
-	}
-
-	// Start up some readers
-	for (int i = 0; i < numThreads; ++i) {
+		writers[i].detach();
 		readers[i] =
 			std::thread([&]() {
 			File f = fs->select("TestFile");
@@ -48,7 +47,7 @@ int TestMVCC(STORAGE::Filesystem *fs) {
 			fs->lock(f, STORAGE::IO::NONEXCLUSIVE);
 			{
 				res = reader.readString();
-				for (size_t ind = 0; ind < numThreads; ++ind) {
+				for (int ind = 0; ind < numThreads; ++ind) {
 					if (res.compare(data[ind]) == 0) {
 						valid = true;
 						break;
@@ -60,14 +59,10 @@ int TestMVCC(STORAGE::Filesystem *fs) {
 		});
 	}
 
-	for (auto &it : writers) {
-		it.join();
-	}
-
 	for (auto &it : readers) {
 		it.join();
 	}
-
+	
 	fs->toggleMVCC();
 
 	return failure;

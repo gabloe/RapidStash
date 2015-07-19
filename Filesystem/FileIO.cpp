@@ -2,8 +2,16 @@
 #include "FilesystemCommon.h"
 #include "Filesystem.h"
 
+STORAGE::IO::FileIO::FileIO(STORAGE::Filesystem *fs_, File file_) : fs(fs_), file(file_) {
+	lastHeader = fs->dir->headers[file];
+}
+
 FilePosition STORAGE::IO::FileIO::tell() {
 	return position;
+}
+
+STORAGE::FileHeader STORAGE::IO::FileIO::getLastHeader() {
+	return lastHeader;
 }
 
 void STORAGE::IO::FileIO::seek(off_t pos, StartLocation start) {

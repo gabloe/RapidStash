@@ -34,13 +34,15 @@ namespace STORAGE {
 		// Base class for all file IO classes
 		class FileIO {
 		public:
-			FileIO(Filesystem *fs_, File file_) : fs(fs_), file(file_), position(0) {}
+			FileIO(Filesystem *, File);
 			void seek(off_t pos, StartLocation start);
 			FilePosition tell();
+			STORAGE::FileHeader getLastHeader();
 		protected:
 			Filesystem *fs;
 			File file;
 			FilePosition position;
+			FileHeader lastHeader;
 		};
 
 		/*

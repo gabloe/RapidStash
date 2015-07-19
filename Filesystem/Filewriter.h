@@ -16,7 +16,7 @@ namespace STORAGE{
 		*/
 		class Writer : public FileIO {
 		public:
-			Writer(Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
+			Writer(Filesystem *, File);
 			void write(const char *, FileSize);
 		};
 	}

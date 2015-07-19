@@ -5,11 +5,13 @@
 /*
 *  File writer utility class
 */
+STORAGE::IO::Writer::Writer(STORAGE::Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
+
 void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 	std::chrono::high_resolution_clock::time_point start;
-	//if (timingEnabled) {
+	if (timingEnabled) {
 		start = std::chrono::high_resolution_clock::now();
-	//}
+	}
 
 	FilePosition oldLoc = fs->dir->files[file];
 
@@ -18,7 +20,7 @@ void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 	// OR if MVCC is enabled
 	if (size + position > fs->dir->headers[file].virtualSize || fs->isMVCCEnabled()) {
 		FilePosition newLoc = fs->relocateHeader(file, size + position);
-
+		
 		// If we are writing somewhere in the middle of the file, we have to copy over some of the beginning
 		// of the old file.
 		if (position > 0) {
@@ -43,8 +45,10 @@ void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 	numWrites++;
 	position += size;
 
-	//if (timingEnabled) {
+	lastHeader = fs->dir->headers[file];
+
+	if (timingEnabled) {
 		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - start);
 		writeTime.store(writeTime.load() + time_span.count());
-	//}
+	}
 }

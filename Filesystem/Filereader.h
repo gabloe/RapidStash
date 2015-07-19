@@ -17,7 +17,7 @@ namespace STORAGE {
 		*/
 		class Reader : public FileIO {
 		public:
-			Reader(Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
+			Reader(Filesystem *, File);
 			int readInt();
 			char readChar();
 			std::string readString(FileSize);
