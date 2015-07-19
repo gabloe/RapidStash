@@ -55,9 +55,9 @@ char *STORAGE::IO::Reader::readRaw() {
 }
 
 char *STORAGE::IO::Reader::readRaw(FileSize amt) {
-	std::chrono::time_point<std::chrono::system_clock> start;
+	std::chrono::high_resolution_clock::time_point start;
 	if (timingEnabled) {
-		start = std::chrono::system_clock::now();
+		start = std::chrono::high_resolution_clock::now();
 	}
 
 	STORAGE::FileHeader &header = fs->dir->headers[file];
@@ -85,9 +85,8 @@ char *STORAGE::IO::Reader::readRaw(FileSize amt) {
 	position += amt;
 
 	if (timingEnabled) {
-		auto end = std::chrono::system_clock::now();
-		auto turnaround = end - start;
-		readTime.store(readTime.load() + turnaround.count());
+		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - start);
+		readTime.store(readTime.load() + time_span.count());
 	}
 	return data;
 }

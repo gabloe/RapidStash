@@ -78,6 +78,7 @@ namespace STORAGE {
 		void checkFreeList();
 		void toggleMVCC();
 		bool isMVCCEnabled();
+		void resetStats();
 
 	protected:
 		DynamicMemoryMappedFile file;
@@ -91,7 +92,7 @@ namespace STORAGE {
 		void writeHeader(File);
 		void writeHeader(FileHeader, FilePosition);
 		File createNewFile(std::string);
-
+		
 		// For quick lookups, map filenames to spot in meta table.
 		std::map<std::string, File> lookup;
 

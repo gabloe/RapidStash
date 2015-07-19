@@ -6,10 +6,10 @@
 *  File writer utility class
 */
 void STORAGE::IO::Writer::write(const char *data, FileSize size) {
-	std::chrono::time_point<std::chrono::system_clock> start;
-	if (timingEnabled) {
-		start = std::chrono::system_clock::now();
-	}
+	std::chrono::high_resolution_clock::time_point start;
+	//if (timingEnabled) {
+		start = std::chrono::high_resolution_clock::now();
+	//}
 
 	FilePosition oldLoc = fs->dir->files[file];
 
@@ -43,9 +43,8 @@ void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 	numWrites++;
 	position += size;
 
-	if (timingEnabled) {
-		auto end = std::chrono::system_clock::now();
-		auto turnaround = end - start;
-		writeTime.store(writeTime.load() + turnaround.count());
-	}
+	//if (timingEnabled) {
+		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - start);
+		writeTime.store(writeTime.load() + time_span.count());
+	//}
 }

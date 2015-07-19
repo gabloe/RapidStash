@@ -11,12 +11,7 @@
 
 // Constructor
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
-	IO::bytesWritten = 0;
-	IO::bytesRead = 0;
-	IO::numWrites = 0;
-	IO::numReads = 0;
-	IO::writeTime = 0;
-	IO::readTime = 0;
+	resetStats();
 	MVCC = false;
 
 	// Set up file directory if the backing file is new.
@@ -46,6 +41,15 @@ void STORAGE::Filesystem::toggleMVCC() {
 
 bool STORAGE::Filesystem::isMVCCEnabled() {
 	return MVCC;
+}
+
+void STORAGE::Filesystem::resetStats() {
+	IO::bytesWritten = 0;
+	IO::bytesRead = 0;
+	IO::numWrites = 0;
+	IO::numReads = 0;
+	IO::writeTime = 0;
+	IO::readTime = 0;
 }
 
 STORAGE::FileHeader STORAGE::Filesystem::readHeader(FilePosition pos) {
@@ -205,6 +209,8 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 
 // Select a file from the filesystem to use.
 File STORAGE::Filesystem::select(std::string fname) {
+	std::lock_guard<std::mutex> lk(dirLock);
+
 	bool fileExists = exists(fname);
 	File file;
 
@@ -231,24 +237,24 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 	FileLock &fl = dir->locks[file];
 	std::unique_lock<std::mutex> lk(dirLock);
 	{
-			// Wait until the file is available (not locked)
-			fl.cond.wait(lk, [&] 
-			{
-				// If we are writing in MVCC, we are going to write a new version, so let's unlock
-				// immediately
-				bool mvccWriteTest = MVCC && type == IO::EXCLUSIVE;
+		// Wait until the file is available (not locked)
+		fl.cond.wait(lk, [&] 
+		{
+			// If we are writing in MVCC, we are going to write a new version, so let's break out if there
+			// are no readers or if there is an old version that a reader would get.
+			bool mvccWriteTest = MVCC && type == IO::EXCLUSIVE && (fl.readers == 0 || dir->headers[file].version > 0);
 
-				// If we are reading in MVCC and there is an old version we can read, unlock.
-				bool mvccReadTest = MVCC && type == IO::NONEXCLUSIVE && fl.lock && dir->headers[file].version > 0;
+			// If we are reading in MVCC and there is an old version we can read, unlock.
+			bool mvccReadTest = MVCC && type == IO::NONEXCLUSIVE && ((fl.lock && dir->headers[file].version > 0) || !fl.lock);
 
-				// If we want write (exclusive) access, there must not be any unlocked readers
-				bool writeTest = !fl.lock && type == IO::EXCLUSIVE && fl.readers == 0;
+			// If we want write (exclusive) access, there must not be any unlocked readers
+			bool writeTest = !fl.lock && type == IO::EXCLUSIVE && fl.readers == 0;
 
-				// If we want read (non-exclusive) access, there must not be any writers
-				bool readTest = !fl.lock && type == IO::NONEXCLUSIVE && fl.writers == 0;
+			// If we want read (non-exclusive) access, there must not be any writers
+			bool readTest = !fl.lock && type == IO::NONEXCLUSIVE && fl.writers == 0;
 
-				return writeTest || readTest || mvccWriteTest || mvccReadTest;
-			});
+			return writeTest || readTest || mvccReadTest || mvccWriteTest;
+		});
 
 		if (type == IO::EXCLUSIVE) {
 			fl.lock = true;
@@ -275,8 +281,10 @@ void STORAGE::Filesystem::unlock(File file, IO::LockType type) {
 			{
 				bool writeRequest = type == IO::EXCLUSIVE && fl.lock && fl.tid == id;
 				bool readRequest = type == IO::NONEXCLUSIVE;
+				// If MVCC then we don't need to wait at all.
 				return writeRequest || readRequest || MVCC;
 			});
+
 		if (type == IO::EXCLUSIVE) {
 			fl.lock = false;
 			fl.tid = nobody;

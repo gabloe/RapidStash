@@ -18,15 +18,18 @@ static void TestWrapper(std::string name, std::function<int(STORAGE::Filesystem*
 	std::cout << name << ": ";
 	std::string fname("data/" + name);
 	STORAGE::Filesystem *fs = new STORAGE::Filesystem(fname.c_str());
+	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 	int res = fn(fs);
-	fs->shutdown();
-	delete fs;
+	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
 	if (res == 0) {
 		std::cout << "PASSED!";
 	} else {
 		std::cout << "FAILED!";
 	}
-	std::cout << "\n";
+	std::cout << " (took " << time_span.count() << " seconds.)\n";
+	fs->shutdown();
+	delete fs;
 }
 
 static std::string random_string(size_t length) {
