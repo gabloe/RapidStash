@@ -5,6 +5,10 @@
 #include <exception>
 #include "FilesystemCommon.h"
 
+typedef std::chrono::duration<double> TimeSpan;
+typedef std::chrono::high_resolution_clock Clock;
+typedef std::chrono::high_resolution_clock::time_point TimePoint;
+
 namespace STORAGE {
 	class Filesystem; //Forward declare
 
@@ -17,7 +21,7 @@ namespace STORAGE {
 		};
 
 		// Statics used by the filesystem
-		static bool timingEnabled = true;
+		static const bool timingEnabled = true;
 		static std::atomic<size_t> bytesWritten;								// Count of number of bytes written
 		static std::atomic<size_t> numWrites;									// Count of number of write operations
 		static std::atomic<size_t> bytesRead;									// Count of number of bytes read

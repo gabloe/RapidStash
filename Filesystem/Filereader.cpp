@@ -57,9 +57,9 @@ char *STORAGE::IO::Reader::readRaw() {
 }
 
 char *STORAGE::IO::Reader::readRaw(FileSize amt) {
-	std::chrono::high_resolution_clock::time_point start;
+	TimePoint start;
 	if (timingEnabled) {
-		start = std::chrono::high_resolution_clock::now();
+		start = Clock::now();
 	}
 
 	STORAGE::FileHeader &header = fs->dir->headers[file];
@@ -67,7 +67,9 @@ char *STORAGE::IO::Reader::readRaw(FileSize amt) {
 	FileSize size;
 
 	// If we are using MVCC and the file is locked, read an old version.
-	if (fs->isMVCCEnabled() && fs->dir->locks[file].lock && header.version > 0 && fs->dir->locks[file].tid != std::this_thread::get_id()) {
+	if (fs->isMVCCEnabled() && 
+		fs->dir->locks[file].lock && header.version > 0 && 
+		fs->dir->locks[file].tid != std::this_thread::get_id()) {
 		loc = header.next;
 		header = fs->readHeader(loc);
 	} else {
@@ -88,7 +90,7 @@ char *STORAGE::IO::Reader::readRaw(FileSize amt) {
 	position += amt;
 
 	if (timingEnabled) {
-		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - start);
+		TimeSpan time_span = std::chrono::duration_cast<TimeSpan>(Clock::now() - start);
 		readTime.store(readTime.load() + time_span.count());
 	}
 	return data;

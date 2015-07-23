@@ -8,11 +8,8 @@
 #include <thread>
 
 const int numWriters = 128;
-
 const int numReaders = 16;
-
 static bool failure = false;
-
 static std::string data[numWriters];
 
 void startWriter(STORAGE::Filesystem *fs, int ind) {

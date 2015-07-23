@@ -8,9 +8,9 @@
 STORAGE::IO::Writer::Writer(STORAGE::Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
 
 void STORAGE::IO::Writer::write(const char *data, FileSize size) {
-	std::chrono::high_resolution_clock::time_point start;
+	TimePoint start;
 	if (timingEnabled) {
-		start = std::chrono::high_resolution_clock::now();
+		start = Clock::now();
 	}
 
 	FilePosition oldLoc = fs->dir->files[file];
@@ -48,7 +48,7 @@ void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 	lastHeader = fs->dir->headers[file];
 
 	if (timingEnabled) {
-		std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - start);
+		TimeSpan time_span = std::chrono::duration_cast<TimeSpan>(Clock::now() - start);
 		writeTime.store(writeTime.load() + time_span.count());
 	}
 }
