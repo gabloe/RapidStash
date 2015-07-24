@@ -1,3 +1,4 @@
+#include "ThreadPool.h"
 #include "Filewriter.h"
 #include "Filesystem.h"
 #include "Testing.h"
@@ -7,6 +8,7 @@
 #include <array>
 #include <thread>
 
+const int numThreads = 32;
 const int numWriters = 128;
 const int numReaders = 16;
 static bool failure = false;
@@ -22,7 +24,7 @@ void startWriter(STORAGE::Filesystem *fs, int ind) {
 	fs->unlock(f, STORAGE::IO::EXCLUSIVE);
 }
 
-void startReader(STORAGE::Filesystem *fs) {
+bool startReader(STORAGE::Filesystem *fs) {
 	File f = fs->select("TestFile");
 	STORAGE::IO::Reader reader = fs->getReader(f);
 	std::string res;
@@ -38,7 +40,7 @@ void startReader(STORAGE::Filesystem *fs) {
 			break;
 		}
 	}
-	failure = !valid;
+	return valid;
 }
 
 int TestMVCC(STORAGE::Filesystem *fs) {
@@ -48,32 +50,22 @@ int TestMVCC(STORAGE::Filesystem *fs) {
 		data[i] = random_string(16);
 	}
 
-	std::array<std::thread, numWriters> writers;
-	std::array<std::thread, numReaders> readers;
+	THREADING::ThreadPool pool(numThreads);
 
 	fs->toggleMVCC();
 
-	std::thread writersThread = std::thread([&] {
-		for (int i = 0; i < numWriters; ++i) {
-			writers[i] = std::thread(startWriter, fs, i);
-		}
-		for (auto &it : writers) {
-			it.join();
-		}
-	});
+	for (int i = 0; i < numWriters; ++i) {
+		pool.enqueue([fs, i] {startWriter(fs, i); });
+	}
 
-	std::thread readersThread = std::thread([&] {
-		for (int i = 0; i < numReaders; ++i) {
-			readers[i] = std::thread(startReader, fs);
+	for (int i = 0; i < numReaders; ++i) {
+		std::future<bool> ret = pool.enqueue([&] {return startReader(fs); });
+		if (!ret.get()) {
+			failure = true;
+			break;
 		}
-		for (auto &it : readers) {
-			it.join();
-		}
-	});
+	}
 
-	writersThread.join();
-	readersThread.join();
-	
 	fs->toggleMVCC();
 
 	return failure;

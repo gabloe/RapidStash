@@ -90,7 +90,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\Filesystem;..\Logging;..\MemoryMappedFile;..\mman-win32;..\RapidStash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThreadPool;..\Filesystem;..\Logging;..\MemoryMappedFile;..\mman-win32;..\RapidStash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -117,7 +117,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\Filesystem;..\Logging;..\MemoryMappedFile;..\mman-win32;..\RapidStash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ThreadPool;..\Filesystem;..\Logging;..\MemoryMappedFile;..\mman-win32;..\RapidStash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
@@ -136,6 +136,9 @@
     </ProjectReference>
     <ProjectReference Include="..\mman-win32\mman.vcxproj">
       <Project>{f118cc2e-9aed-4db0-9bf4-028781d97ad1}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\ThreadPool\ThreadPool.vcxproj">
+      <Project>{83ea81c8-e29d-407f-b8b3-8647f46e9115}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

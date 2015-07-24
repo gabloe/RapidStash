@@ -36,11 +36,11 @@ THREADING::ThreadPool::ThreadPool(size_t n) {
 }
 
 template <class T>
-void THREADING::ThreadPool::enqueue(T t) {
+void THREADING::ThreadPool::enqueue(T f) {
 	// Add worker to queue
 	std::unique_lock<std::mutex> lk(queueMutex);
 	{
-		tasks.push_back(std::function<void()>(t));
+		taskQueue.push_back(f);
 	}
 	lk.unlock();
 	cv.notify_one();
