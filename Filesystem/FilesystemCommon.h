@@ -16,6 +16,7 @@ namespace STORAGE {
 																			// A file is just am index into an internal array.
 	static std::mutex dirLock;		// If we modify anything in the file directory, it must be atomic.
 	static std::mutex insertGuard;	// Protect file directory info during inserts
+	static std::mutex selectLock;
 
 	static const size_t MAXFILES = 2 << 19; // 1MB entries at 8 bytes per entry == 8MB file directory
 

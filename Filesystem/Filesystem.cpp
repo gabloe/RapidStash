@@ -8,9 +8,10 @@
 #include "Filesystem.h"
 #include "Filereader.h"
 #include "FileIOCommon.h"
+#include <assert.h>
 
 // Constructor
-STORAGE::Filesystem::Filesystem(const char* fname) : file(fname) {
+STORAGE::Filesystem::Filesystem(const char* fname) : file(fname), shuttingDown(false) {
 	resetStats();
 	MVCC = false;
 
@@ -119,96 +120,110 @@ File STORAGE::Filesystem::createNewFile(std::string fname) {
 }
 
 FilePosition STORAGE::Filesystem::relocateHeader(File oldFile, FileSize size) {
-	std::lock_guard<std::mutex> lk(insertGuard); // Avoid potential data races here
+	FilePosition newPosition;
+	{
+		std::lock_guard<std::mutex> lk(insertGuard); // Avoid potential data races here
 
-	FileSize totalSize = size + FileHeader::SIZE;
-	FilePosition oldPosition = dir->files[oldFile];
-	FileHeader newHeader;
-	FilePosition newPosition = dir->nextRawSpot;
-	dir->nextRawSpot += totalSize;
+		// Calculate new position of file
+		FileSize totalSize = size + FileHeader::SIZE;
+		newPosition = dir->nextRawSpot;
+		dir->nextRawSpot += totalSize;
 
-	// Copy data into the new header
-	strcpy_s(newHeader.name, dir->headers[oldFile].name);
-	newHeader.size = size;
-	newHeader.virtualSize = size;
-	newHeader.version = dir->headers[oldFile].version + 1;
-	newHeader.next = oldPosition;
-	newHeader.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-	
-	// Write the header and set the directory info
-	writeHeader(newHeader, newPosition);
-	dir->headers[oldFile] = newHeader;
-	dir->files[oldFile] = newPosition;
+		FilePosition oldPosition = dir->files[oldFile];
+		FileHeader newHeader;
+
+		// Copy data into the new header
+		strcpy_s(newHeader.name, dir->headers[oldFile].name);
+		newHeader.size = size;
+		newHeader.virtualSize = size;
+		newHeader.next = oldPosition;
+		// Increment the version!
+		newHeader.version = dir->headers[oldFile].version + 1;
+		newHeader.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+
+		// Write the header and set the directory info
+		dir->headers[oldFile] = newHeader;
+		dir->files[oldFile] = newPosition;
+		writeHeader(oldFile);
+	}
 
 	return newPosition;
 }
 
 // Insert or update a files metadata and write the header to disk
 File STORAGE::Filesystem::insertHeader(const char *name) {
-	std::lock_guard<std::mutex> lk(insertGuard); // Avoid potential data races here
+	File newFile;
+	{
+		std::lock_guard<std::mutex> lk(insertGuard); // Avoid potential data races here
 
-	FileSize totalSize = FileHeader::SIZE;
-	FilePosition position;
-	FileHeader header;
+		// The file index is returned to the caller...
+		newFile = dir->nextSpot;
+		dir->nextSpot++;
 
-	// The file index is returned to the caller...
-	File newFile = dir->nextSpot;
-	dir->nextSpot++;
+		FileSize totalSize = FileHeader::SIZE;
+		FilePosition position;
+		FileHeader header;
 
-	if (dir->tempList == 0) {
-		position = dir->nextRawSpot;
-		dir->nextRawSpot += totalSize;
-		dir->tempList = position;
-		header.next = 0;
-	} else {
-		FilePosition lst = dir->tempList;
-		FileHeader h;
-		bool found = false;
-		while (lst != 0) {
-			h = readHeader(lst);
-			auto it = lookup.find(std::string(h.name));
-			if (it != lookup.end() && dir->files[it->second] != lst) {
-				found = true;
-				break;
-			}
-			lst = h.next;
-		}
-
-		// Write the header where the old header was before being relocated
-		if (found) {
-			position = lst;
-		} else {
+		if (dir->tempList == 0) {
 			position = dir->nextRawSpot;
 			dir->nextRawSpot += totalSize;
-			header.next = dir->tempList;
 			dir->tempList = position;
+			header.next = 0;
 		}
+		else {
+			FilePosition lst = dir->tempList;
+			FileHeader h;
+			bool found = false;
+			while (lst != 0) {
+				h = readHeader(lst);
+				auto it = lookup.find(std::string(h.name));
+				if (it != lookup.end() && dir->files[it->second] != lst) {
+					found = true;
+					break;
+				}
+				lst = h.next;
+			}
+
+			// Write the header where the old header was before being relocated
+			if (found) {
+				position = lst;
+			}
+			else {
+				position = dir->nextRawSpot;
+				dir->nextRawSpot += totalSize;
+				header.next = dir->tempList;
+				dir->tempList = position;
+			}
+		}
+
+		// Copy over some metadata
+		strcpy_s(header.name, name);
+		header.size = 0;
+		header.virtualSize = 0;
+		header.version = -1;  // The file is new, but we haven't written to it yet, so it's not even version 0
+		header.next = 0;
+		header.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+
+		// Setup directory
+		dir->locks[newFile].lock = false;
+		dir->headers[newFile] = header;
+		dir->files[newFile] = position;
+		dir->numFiles++;
+
+		// Add file to lookup
+		lookup[std::string(name)] = newFile;
+
+		// Write the header
+		writeHeader(header, position);
 	}
-
-	// Copy over some metadata
-	strcpy_s(header.name, name);
-	header.size = 0;
-	header.virtualSize = 0;
-	header.version = -1;  // The file is new, but we haven't written to it yet, so it's not even version 0
-	header.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-
-	// Write the header
-	writeHeader(header, position);
-
-	// Setup directory
-	dir->locks[newFile].lock = false;
-	dir->headers[newFile] = header;
-	dir->files[newFile] = position;
-	dir->numFiles++;
-
-	// Add file to lookup
-	lookup[std::string(name)] = newFile;
 
 	return newFile;
 }
 
 // Select a file from the filesystem to use.
 File STORAGE::Filesystem::select(std::string fname) {
+	std::lock_guard<std::mutex> lk(selectLock);
+
 	bool fileExists = exists(fname);
 	File file;
 
@@ -227,72 +242,80 @@ File STORAGE::Filesystem::select(std::string fname) {
 // Lock the file for either read or write
 void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 	std::thread::id id = std::this_thread::get_id();
+
+#if logging
 	std::ostringstream os;
 	os << "Thread " << id << " is locking " << file;
 	logEvent(THREAD, os.str());
+#else
+	//std::cout << "Thread " << id << " is locking " << file << " for " << LockTypeToString(type) << std::endl;
+#endif
 
 	// We are locking the file so that we can read and/or write
 	FileLock &fl = dir->locks[file];
-	std::unique_lock<std::mutex> lk(dirLock);
 	{
-		// Wait until the file is available (not locked)
+	std::unique_lock<std::mutex> lk(dirLock);
+		// Wait until the file is available
 		fl.cond.wait(lk, [&] 
 		{
-			// If we are writing in MVCC, we are going to write a new version, so let's stop waiting
-			bool mvccWriteTest = MVCC && type == IO::EXCLUSIVE;
-			if (mvccWriteTest) { return true; }
+			if (shuttingDown) { return true; }
 
-			// If we are reading in MVCC and there is an old version we can read, unlock.
-			bool mvccReadTest = MVCC && type == IO::NONEXCLUSIVE && ((fl.lock && dir->headers[file].version > 0) || !fl.lock);
-			if (mvccReadTest) { return true; }
+			// Special cases for multiversion concurrency control
+			if (MVCC) {
+				if (type == IO::NONEXCLUSIVE) {
+					// If the file is unlocked with no writers, we can immediately read
+					bool readUnlockTest = fl.writers == 0 && dir->headers[file].version > -1;
+					if (readUnlockTest) { return true; }
+					// If there are writers, but there is a previous version available, we can read it
+					bool readLockTest = fl.writers > 0 && dir->headers[file].version > 0;
+					if (readLockTest) { return true; }
 
-			// If we want write (exclusive) access, there must not be any unlocked readers
-			bool writeTest = !fl.lock && type == IO::EXCLUSIVE && fl.readers == 0;
-			if (writeTest) { return true; }
+				} else if (type == IO::EXCLUSIVE) {
+					// The file will get a new version, immediately stop waiting
+					return true;
+				}
+			} else {
+				// If we want read (non-exclusive) access, there must not be any writers
+				bool readTest = type == IO::NONEXCLUSIVE && fl.writers == 0;
+				if (readTest) { return true; }
 
-			// If we want read (non-exclusive) access, there must not be any writers
-			bool readTest = !fl.lock && type == IO::NONEXCLUSIVE && fl.writers == 0;
+				// If we want write (exclusive) access, there must not be any unlocked readers or locked writers
+				bool writeTest = type == IO::EXCLUSIVE && fl.readers == 0;
+				if (writeTest) { return true; }
+			}
 
-			return readTest;
+			// Keep waiting
+			return false;
 		});
 
 		if (type == IO::EXCLUSIVE) {
-			fl.lock = true;
-			fl.tid = id;
 			fl.writers++;
 		} else if (type == IO::NONEXCLUSIVE) {
 			fl.readers++;
 		}
 	}
-	lk.unlock();
 }
 
 void STORAGE::Filesystem::unlock(File file, IO::LockType type) {
 	std::thread::id id = std::this_thread::get_id();
+
+#if logging
 	std::ostringstream os;
 	os << "Thread " << id << " is unlocking " << file;
 	logEvent(THREAD, os.str());
+#else
+	//std::cout << "Thread " << id << " is unlocking " << file << " for " << LockTypeToString(type) << std::endl;
+#endif
 
 	FileLock &fl = dir->locks[file];
-	std::unique_lock<std::mutex> lk(dirLock);
 	{
-		// Wait until the file is actually locked and the current thread is the owner of the lock
-		fl.cond.wait(lk, [&] 
-			{
-				bool writeRequest = type == IO::EXCLUSIVE && fl.lock && fl.tid == id;
-				// If MVCC then we don't need to wait at all.
-				return writeRequest || type == IO::NONEXCLUSIVE || MVCC;
-			});
-
+		std::unique_lock<std::mutex> lk(dirLock);
 		if (type == IO::EXCLUSIVE) {
-			fl.lock = false;
-			fl.tid = nobody;
 			fl.writers--;
 		} else if (type == IO::NONEXCLUSIVE) {
 			fl.readers--;
 		}
 	}
-	lk.unlock();
 	fl.cond.notify_one();
 
 	std::ostringstream os2;
@@ -349,6 +372,7 @@ size_t STORAGE::Filesystem::count(CountType type) {
 }
 
 void STORAGE::Filesystem::shutdown(int code) {
+	shuttingDown = true;
 	writeFileDirectory(dir); // Make sure that any changes to the directory are flushed to disk.
 	file.shutdown(code);
 }
@@ -410,6 +434,14 @@ STORAGE::IO::Writer STORAGE::Filesystem::getWriter(File f) {
 
 STORAGE::IO::Reader STORAGE::Filesystem::getReader(File f) {
 	return IO::Reader(this, f);
+}
+
+STORAGE::IO::SafeWriter STORAGE::Filesystem::getSafeWriter(File f) {
+	return IO::SafeWriter(this, f);
+}
+
+STORAGE::IO::SafeReader STORAGE::Filesystem::getSafeReader(File f) {
+	return IO::SafeReader(this, f);
 }
 
 STORAGE::FileHeader STORAGE::Filesystem::getHeader(File f) {

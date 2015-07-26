@@ -5,8 +5,23 @@
 #include "Filesystem.h"
 
 /*
-*  File reader utility class
-*/
+ *  Safe (auto-locking) File reader utility class
+ */
+STORAGE::IO::SafeReader::SafeReader(STORAGE::Filesystem *fs_, File file_) : Reader(fs_, file_) {}
+
+char *STORAGE::IO::SafeReader::readRaw() {
+	char *data;
+	fs->lock(file, NONEXCLUSIVE);
+	{
+		data = Reader::readRaw();
+	}
+	fs->unlock(file, NONEXCLUSIVE);
+	return data;
+}
+
+/*
+ *  File reader utility class
+ */
 STORAGE::IO::Reader::Reader(STORAGE::Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
 
 int STORAGE::IO::Reader::readInt() {
@@ -66,10 +81,9 @@ char *STORAGE::IO::Reader::readRaw(FileSize amt) {
 	FilePosition loc;
 	FileSize size;
 
-	// If we are using MVCC and the file is locked, read an old version.
+	// If we are using MVCC and the file is being written, read an old version.
 	if (fs->isMVCCEnabled() && 
-		fs->dir->locks[file].lock && header.version > 0 && 
-		fs->dir->locks[file].tid != std::this_thread::get_id()) {
+		fs->dir->locks[file].writers > 0 && header.version > 0) {
 		loc = header.next;
 		header = fs->readHeader(loc);
 	} else {

@@ -3,8 +3,21 @@
 #include "Filesystem.h"
 
 /*
-*  File writer utility class
-*/
+ *  Safe (auto-locking) file writer utility class
+ */
+STORAGE::IO::SafeWriter::SafeWriter(STORAGE::Filesystem *fs_, File file_) : Writer(fs_, file_) {}
+
+void STORAGE::IO::SafeWriter::write(const char *data, FileSize size) {
+	fs->lock(file, EXCLUSIVE);
+	{
+		Writer::write(data, size);
+	}
+	fs->unlock(file, EXCLUSIVE);
+}
+
+/*
+ *  File writer utility class
+ */
 STORAGE::IO::Writer::Writer(STORAGE::Filesystem *fs_, File file_) : FileIO(fs_, file_) {}
 
 void STORAGE::IO::Writer::write(const char *data, FileSize size) {

@@ -25,6 +25,12 @@ namespace STORAGE {
 			char *readRaw(FileSize);
 			char *readRaw();
 		};
+
+		class SafeReader : public Reader {
+		public:
+			SafeReader(Filesystem *, File);
+			char *readRaw();
+		};
 	}
 }
 #endif

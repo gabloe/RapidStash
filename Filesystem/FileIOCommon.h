@@ -20,6 +20,14 @@ namespace STORAGE {
 			EXCLUSIVE
 		};
 
+		static inline std::string LockTypeToString(LockType t) {
+			switch (t) {
+			case NONEXCLUSIVE: return std::string("Non-Exclusive");
+			case EXCLUSIVE: return std::string("Exclusive");
+			default: return std::string("Unknown");
+			}
+		}
+
 		// Statics used by the filesystem
 		static const bool timingEnabled = true;
 		static std::atomic<size_t> bytesWritten;								// Count of number of bytes written

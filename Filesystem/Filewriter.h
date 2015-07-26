@@ -19,6 +19,12 @@ namespace STORAGE{
 			Writer(Filesystem *, File);
 			void write(const char *, FileSize);
 		};
+
+		class SafeWriter : public Writer {
+		public:
+			SafeWriter(Filesystem *, File);
+			void write(const char *, FileSize);
+		};
 	}
 }
 

@@ -72,6 +72,8 @@ namespace STORAGE {
 		FileHeader getHeader(File);
 		IO::Writer getWriter(File);
 		IO::Reader getReader(File);
+		IO::SafeWriter getSafeWriter(File);
+		IO::SafeReader getSafeReader(File);
 		size_t count(CountType);
 		double getThroughput(CountType);
 		bool exists(std::string);
@@ -98,6 +100,8 @@ namespace STORAGE {
 
 		// Toggle multiversion concorrency control
 		bool MVCC;
+
+		bool shuttingDown;
 	};
 }
 

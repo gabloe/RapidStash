@@ -16,7 +16,6 @@ int TestHeader(STORAGE::Filesystem *fs) {
 	fs->unlock(f, STORAGE::IO::EXCLUSIVE);
 
 	STORAGE::FileHeader header = fs->getHeader(f);
-
 	if (header.size != data.size() ||
 		strcmp("TestFile", header.name) != 0 ||
 		header.version != 0) {
