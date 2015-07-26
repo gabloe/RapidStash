@@ -146,6 +146,7 @@
     <ClCompile Include="TestConcurentWrite.cpp" />
     <ClCompile Include="TestHeader.cpp" />
     <ClCompile Include="Testing.cpp" />
+    <ClCompile Include="TestConcurrentReadWrite.cpp" />
     <ClCompile Include="TestMVCC.cpp" />
     <ClCompile Include="TestReadWrite.cpp" />
   </ItemGroup>

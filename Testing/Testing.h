@@ -11,6 +11,7 @@ int TestReadWrite(STORAGE::Filesystem *);
 int TestConcurrentWrite(STORAGE::Filesystem *);
 int TestHeader(STORAGE::Filesystem *);
 int TestMVCC(STORAGE::Filesystem *);
+int TestConcurrentReadWrite(STORAGE::Filesystem *);
 
 typedef std::function<void()> TestWrapper_t;
 
