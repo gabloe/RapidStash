@@ -21,14 +21,23 @@ namespace STORAGE {
 	static const size_t MAXFILES = 2 << 19; // 1MB entries at 8 bytes per entry == 8MB file directory
 
 	struct FileLock {
-		bool lock;						// The exclusive lock status of the file
 		std::condition_variable cond;	// Condition variable to wait on
-		std::thread::id tid;			// The owner of the lock
 		int writers;					// The number of threads writing
 		int readers;					// The number of threads reading
 
-		FileLock() : lock(false), readers(0), writers(0) {}
+		FileLock() : readers(0), writers(0) {}
+		FileLock(const FileLock &other) {
+			writers = other.writers;
+			readers = other.readers;
+		}
+		FileLock &operator=(const FileLock&);
 	};
+
+	inline FileLock& FileLock::operator= (const FileLock &src) {
+		writers = src.writers;
+		readers = src.readers;
+		return *this;
+	}
 
 	struct FileHeader {
 		// Statics

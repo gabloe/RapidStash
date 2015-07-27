@@ -9,6 +9,7 @@
 #include "Filereader.h"
 #include "FileIOCommon.h"
 #include <assert.h>
+#include <future>
 
 // Constructor
 STORAGE::Filesystem::Filesystem(const char* fname) : file(fname), shuttingDown(false) {
@@ -51,6 +52,60 @@ void STORAGE::Filesystem::resetStats() {
 	IO::numReads = 0;
 	IO::writeTime = 0;
 	IO::readTime = 0;
+}
+
+// Remove a file from the filesystem
+void STORAGE::Filesystem::unlink(File f) {
+	std::string thisName;
+	lock(f, IO::EXCLUSIVE);
+	{
+		// Save info about the file
+		FilePosition pos = dir->files[f];
+		FileSize size = dir->headers[f].size;
+		FileSize vsize = dir->headers[f].virtualSize;
+		thisName = std::string(dir->headers[f].name);
+
+		// Overwrite the file with the last file
+		FilePosition lastFilePos = dir->files[dir->numFiles - 1];
+		FileHeader lastFileHeader = readHeader(lastFilePos);
+		File &lastFile = lookup[std::string(lastFileHeader.name)];
+		lock(lastFile, IO::EXCLUSIVE);
+		{
+			dir->files[f] = dir->files[lastFile];
+			dir->headers[f] = dir->headers[lastFile];
+			dir->locks[f] = dir->locks[lastFile];
+			lookup[std::string(dir->headers[lastFile].name)] = f;
+		}
+		unlock(lastFile, IO::EXCLUSIVE);
+
+		// Validate that the next header is valid.  Otherwise we cannot reclaim the space.
+		FileHeader nextHeader = readHeader(pos + size + FileHeader::SIZE);
+		if (strcmp(nextHeader.name, "") != 0 ||
+			lookup.find(std::string(nextHeader.name, strlen(nextHeader.name))) != lookup.end()) {
+			File nextFile = lookup[std::string(nextHeader.name)];
+			FileHeader &nextFileHeader = dir->headers[nextFile];
+			auto reader = getReader(nextFile);
+			auto writer = getWriter(nextFile);
+			lock(nextFile, IO::EXCLUSIVE);
+			{
+				char *buf = reader.readRaw();
+				dir->files[nextFile] = pos;	// Update the file position
+				dir->headers[nextFile].virtualSize += vsize + FileHeader::SIZE;
+				writer.write(buf, nextFileHeader.size);
+				writeHeader(nextFile);
+			}
+			unlock(nextFile, IO::EXCLUSIVE);
+		}
+	}
+	unlock(f, IO::EXCLUSIVE);
+
+	// Remove the lookup info and fix the directory metadata
+	{
+		std::unique_lock<std::mutex> lk(dirLock);
+		lookup.erase(thisName);
+		dir->numFiles--;
+		dir->nextSpot--;
+	}
 }
 
 STORAGE::FileHeader STORAGE::Filesystem::readHeader(FilePosition pos) {
@@ -205,7 +260,6 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 		header.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 
 		// Setup directory
-		dir->locks[newFile].lock = false;
 		dir->headers[newFile] = header;
 		dir->files[newFile] = position;
 		dir->numFiles++;
@@ -221,22 +275,18 @@ File STORAGE::Filesystem::insertHeader(const char *name) {
 }
 
 // Select a file from the filesystem to use.
-File STORAGE::Filesystem::select(std::string fname) {
+File &STORAGE::Filesystem::select(std::string fname) {
 	std::lock_guard<std::mutex> lk(selectLock);
 
 	bool fileExists = exists(fname);
-	File file;
 
 	// Check if the file exists.
-	if (fileExists) {
-		logEvent(EVENT, "File " + fname + " exists");
-		file = lookup[fname];
-	} else {
+	if (!fileExists) {
 		// This potentially creates garbage if the user doesn't ever write to the file
-		file = createNewFile(fname);
+		createNewFile(fname);
 	}
 
-	return file;
+	return lookup[fname];
 }
 
 // Lock the file for either read or write
@@ -262,7 +312,7 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 
 			// Special cases for multiversion concurrency control
 			if (MVCC) {
-				if (type == IO::NONEXCLUSIVE) {
+				if (type == IO::SHARED) {
 					// If the file is unlocked with no writers, we can immediately read
 					bool readUnlockTest = fl.writers == 0 && dir->headers[file].version > -1;
 					if (readUnlockTest) { return true; }
@@ -276,7 +326,7 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 				}
 			} else {
 				// If we want read (non-exclusive) access, there must not be any writers
-				bool readTest = type == IO::NONEXCLUSIVE && fl.writers == 0;
+				bool readTest = type == IO::SHARED && fl.writers == 0;
 				if (readTest) { return true; }
 
 				// If we want write (exclusive) access, there must not be any unlocked readers or locked writers
@@ -290,7 +340,7 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 
 		if (type == IO::EXCLUSIVE) {
 			fl.writers++;
-		} else if (type == IO::NONEXCLUSIVE) {
+		} else if (type == IO::SHARED) {
 			fl.readers++;
 		}
 	}
@@ -312,7 +362,7 @@ void STORAGE::Filesystem::unlock(File file, IO::LockType type) {
 		std::unique_lock<std::mutex> lk(dirLock);
 		if (type == IO::EXCLUSIVE) {
 			fl.writers--;
-		} else if (type == IO::NONEXCLUSIVE) {
+		} else if (type == IO::SHARED) {
 			fl.readers--;
 		}
 	}

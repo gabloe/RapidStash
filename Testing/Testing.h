@@ -20,6 +20,7 @@ int TestMVCC(STORAGE::Filesystem *);
 int TestConcurrentReadWrite(STORAGE::Filesystem *);
 int TestConcurrentMultiFile(STORAGE::Filesystem *);
 int TestConcurrentMultiFileMVCC(STORAGE::Filesystem *);
+int TestUnlink(STORAGE::Filesystem *);
 
 typedef std::function<void()> TestWrapper_t;
 

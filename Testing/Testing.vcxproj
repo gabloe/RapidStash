@@ -151,6 +151,7 @@
     <ClCompile Include="TestConcurrentReadWrite.cpp" />
     <ClCompile Include="TestMVCC.cpp" />
     <ClCompile Include="TestReadWrite.cpp" />
+    <ClCompile Include="TestUnlink.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Testing.h" />

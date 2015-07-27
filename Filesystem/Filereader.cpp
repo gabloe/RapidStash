@@ -11,11 +11,11 @@ STORAGE::IO::SafeReader::SafeReader(STORAGE::Filesystem *fs_, File file_) : Read
 
 char *STORAGE::IO::SafeReader::readRaw() {
 	char *data;
-	fs->lock(file, NONEXCLUSIVE);
+	fs->lock(file, SHARED);
 	{
 		data = Reader::readRaw();
 	}
-	fs->unlock(file, NONEXCLUSIVE);
+	fs->unlock(file, SHARED);
 	return data;
 }
 

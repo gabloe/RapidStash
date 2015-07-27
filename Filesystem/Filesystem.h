@@ -66,7 +66,7 @@ namespace STORAGE {
 	public:
 		Filesystem(const char* fname);
 		void shutdown(int code = SUCCESS);
-		File select(std::string);
+		File &select(std::string);
 		void lock(File, IO::LockType);
 		void unlock(File, IO::LockType);
 		FileHeader getHeader(File);
@@ -81,6 +81,7 @@ namespace STORAGE {
 		void toggleMVCC();
 		bool isMVCCEnabled();
 		void resetStats();
+		void unlink(File);
 
 	protected:
 		DynamicMemoryMappedFile file;

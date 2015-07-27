@@ -16,13 +16,13 @@ namespace STORAGE {
 		// Lock type are either exclusive for both reads and writes (WRITE lock) or
 		// nonexclusive for reads only (READ lock).
 		enum LockType {
-			NONEXCLUSIVE,
+			SHARED,
 			EXCLUSIVE
 		};
 
 		static inline std::string LockTypeToString(LockType t) {
 			switch (t) {
-			case NONEXCLUSIVE: return std::string("Non-Exclusive");
+			case SHARED: return std::string("Non-Exclusive");
 			case EXCLUSIVE: return std::string("Exclusive");
 			default: return std::string("Unknown");
 			}
