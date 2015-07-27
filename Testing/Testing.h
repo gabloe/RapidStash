@@ -7,11 +7,19 @@
 #include <string>
 #include <Filesystem.h>
 
+static const int numNames = 16;
+static const int stringSize = 2048;
+static const int numThreads = 32;
+static const int numWriters = 256;
+static const int numReaders = 256;
+
 int TestReadWrite(STORAGE::Filesystem *);
 int TestConcurrentWrite(STORAGE::Filesystem *);
 int TestHeader(STORAGE::Filesystem *);
 int TestMVCC(STORAGE::Filesystem *);
 int TestConcurrentReadWrite(STORAGE::Filesystem *);
+int TestConcurrentMultiFile(STORAGE::Filesystem *);
+int TestConcurrentMultiFileMVCC(STORAGE::Filesystem *);
 
 typedef std::function<void()> TestWrapper_t;
 

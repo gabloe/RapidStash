@@ -12,16 +12,22 @@ static bool failure = false;
 static std::string data[numWriters];
 
 inline void startWriter(STORAGE::Filesystem *fs, int ind) {
-	File f = fs->select("TestFile");
+	static int i;
+	std::ostringstream os;
+	os << "TestFile" << (std::rand() + i++) % numNames;
+	File f = fs->select(os.str());
 	STORAGE::IO::SafeWriter writer = fs->getSafeWriter(f);
 	writer.write(data[ind].c_str(), data[ind].size());
 }
 
 inline bool startReader(STORAGE::Filesystem *fs) {
-	File f = fs->select("TestFile");
+	static int i;
+	std::ostringstream os;
+	os << "TestFile" << (std::rand() + i++) % numNames;
+	File f = fs->select(os.str());
 	STORAGE::IO::SafeReader reader = fs->getSafeReader(f);
 	std::string res;
-	bool valid = true;	
+	bool valid = true;
 	res = reader.readString();
 	for (int ind = 0; ind < numWriters; ++ind) {
 		if (res.compare(data[ind]) == 0 || res.compare("") == 0) {
@@ -32,7 +38,7 @@ inline bool startReader(STORAGE::Filesystem *fs) {
 	return valid;
 }
 
-int TestConcurrentReadWrite(STORAGE::Filesystem *fs) {
+int TestConcurrentMultiFile(STORAGE::Filesystem *fs) {
 
 	for (int i = 0; i < numWriters; ++i) {
 		std::srand((unsigned int)std::time(NULL) + i);
