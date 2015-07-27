@@ -99,7 +99,7 @@ namespace STORAGE {
 		// For quick lookups, map filenames to spot in meta table.
 		std::map<std::string, File> lookup;
 
-		// Toggle multiversion concorrency control
+		// Toggle multiversion concurrency control
 		bool MVCC;
 
 		bool shuttingDown;
