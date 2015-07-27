@@ -129,19 +129,13 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, si
 	size_t start = pos + HEADER_SIZE;
 	size_t end = start + len;
 
-checkspace:
 	std::unique_lock<std::mutex> lk(growthLock);
 	if (end > mapSize) {
-		cvWrite.wait(lk, [] {return !growing; });
 		grow(end);
-		lk.unlock();
-		cvWrite.notify_one();
-		goto checkspace;
-	} else {
-		lk.unlock();
-		// If the space is available we can write immediately.
-		memcpy(fs + start, data, len);
 	}
+	memcpy(fs + start, data, len);
+	lk.unlock();
+	
 	return 0;
 }
 
@@ -157,13 +151,13 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 
 	char *data = NULL;
 	// We cannot read when we are growing.  This prevents out of bound reads.
-	std::unique_lock<std::mutex> lk(growthLock);
-	cvRead.wait(lk, [] {return !growing; });
-	lk.unlock();
-	cvRead.notify_one();
+	//std::unique_lock<std::mutex> lk(growthLock);
+	
 	data = (char *)malloc(len);
 	if (data != NULL)
 		memcpy(data, fs + start, len);
+
+	//lk.unlock();
 
 	return data;
 }
