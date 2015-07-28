@@ -206,6 +206,12 @@ bool STORAGE::DynamicMemoryMappedFile::sanityCheck(const char * header) {
 	return true;
 }
 
+size_t STORAGE::DynamicMemoryMappedFile::align(size_t amt) {
+	const short alignment = 16;
+	size_t rem = amt % alignment;
+	return amt + alignment - rem;
+}
+
 void STORAGE::DynamicMemoryMappedFile::grow(size_t newSize) {	// Increase the size by some amount
 	growing = true;
 	size_t oldMapSize = mapSize;
@@ -215,7 +221,7 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t newSize) {	// Increase the si
 		return;
 	}
 	size_t test = (size_t)std::ceil(newSize * GROWTH_FACTOR);
-	mapSize = test > maxSize ? maxSize : test;
+	mapSize = align(test > maxSize ? maxSize : test);
 
 #if EXTRATESTING
 	std::ostringstream os;

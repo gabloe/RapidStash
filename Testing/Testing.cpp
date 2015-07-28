@@ -8,14 +8,14 @@
 
 int main() {
 	std::vector<TestWrapper_t> fn;
-	fn.push_back([] {return TestWrapper("TestReadWrite", TestReadWrite); });
-	fn.push_back([] {return TestWrapper("TestHeader", TestHeader); });
-	fn.push_back([] {return TestWrapper("TestConcurrentWrite", TestConcurrentWrite); });
-	fn.push_back([] {return TestWrapper("TestConcurrentReadWrite", TestConcurrentReadWrite); });
-	fn.push_back([] {return TestWrapper("TestConcurrentMultiFile", TestConcurrentMultiFile); });
-	fn.push_back([] {return TestWrapper("TestMVCC", TestMVCC); });
-	fn.push_back([] {return TestWrapper("TestConcurrentMultiFileMVCC", TestConcurrentMultiFileMVCC); });
-	fn.push_back([] {return TestWrapper("TestUnlink", TestUnlink); });
+	fn.push_back([] {return TestWrapper("Read Write", TestReadWrite); });
+	fn.push_back([] {return TestWrapper("File Header", TestHeader); });
+	fn.push_back([] {return TestWrapper("Concurrent Write", TestConcurrentWrite); });
+	fn.push_back([] {return TestWrapper("Concurrent Read Write", TestConcurrentReadWrite); });
+	fn.push_back([] {return TestWrapper("Concurrent Multi-File", TestConcurrentMultiFile); });
+	fn.push_back([] {return TestWrapper("MVCC", TestMVCC); });
+	fn.push_back([] {return TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
+	fn.push_back([] {return TestWrapper("Unlink", TestUnlink); });
 
 	_mkdir("data");
 

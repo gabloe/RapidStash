@@ -105,6 +105,7 @@ namespace STORAGE {
 		char *readHeader();
 		bool sanityCheck(const char*);
 		void grow(size_t);
+		size_t align(size_t);
 	};
 }
 
