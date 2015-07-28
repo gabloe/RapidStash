@@ -25,7 +25,7 @@ int TestUnlink(STORAGE::Filesystem *);
 typedef std::function<void()> TestWrapper_t;
 
 static void TestWrapper(std::string name, std::function<int(STORAGE::Filesystem*)> fn) {
-	std::cout << name << ": ";
+	std::cout << std::setw(30) << std::right << name << ": ";
 	std::string fname("data/" + name);
 	STORAGE::Filesystem *fs = new STORAGE::Filesystem(fname.c_str());
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
@@ -33,9 +33,9 @@ static void TestWrapper(std::string name, std::function<int(STORAGE::Filesystem*
 	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
 	if (res == 0) {
-		std::cout << "PASSED!";
+		std::cout << std::left << "PASSED!";
 	} else {
-		std::cout << "FAILED!";
+		std::cout << std::left << "FAILED!";
 	}
 	std::cout << " (took " << time_span.count() << " seconds.)\n";
 	fs->shutdown();

@@ -15,9 +15,9 @@ int TestUnlink(STORAGE::Filesystem *fs) {
 	STORAGE::FileHeader h1 = fs->getHeader(first);
 	STORAGE::FileHeader h2 = fs->getHeader(second);
 	FileSize sizeBefore = h2.virtualSize;
-	fs->unlink(first);
+	bool merged = fs->unlink(first);
 	h2 = fs->getHeader(second);
-	if (h2.virtualSize != sizeBefore + STORAGE::FileHeader::SIZE + h1.virtualSize) {
+	if (merged && h2.virtualSize != sizeBefore + STORAGE::FileHeader::SIZE + h1.virtualSize) {
 		return 1;
 	}
 	return 0;

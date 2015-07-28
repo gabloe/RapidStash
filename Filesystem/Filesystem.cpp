@@ -55,8 +55,9 @@ void STORAGE::Filesystem::resetStats() {
 }
 
 // Remove a file from the filesystem
-void STORAGE::Filesystem::unlink(File f) {
+bool STORAGE::Filesystem::unlink(File f) {
 	std::string thisName;
+	bool merged = false;
 	lock(f, IO::EXCLUSIVE);
 	{
 		// Save info about the file
@@ -95,6 +96,7 @@ void STORAGE::Filesystem::unlink(File f) {
 				writeHeader(nextFile);
 			}
 			unlock(nextFile, IO::EXCLUSIVE);
+			merged = true;
 		}
 	}
 	unlock(f, IO::EXCLUSIVE);
@@ -106,6 +108,8 @@ void STORAGE::Filesystem::unlink(File f) {
 		dir->numFiles--;
 		dir->nextSpot--;
 	}
+
+	return merged;
 }
 
 STORAGE::FileHeader STORAGE::Filesystem::readHeader(FilePosition pos) {

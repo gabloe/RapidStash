@@ -19,6 +19,8 @@ int main() {
 
 	_mkdir("data");
 
+	std::cout << "Test Results:" << std::endl;
+	std::cout << std::setfill('-');
 	for (auto &func : fn) {
 		func();
 	}

@@ -81,7 +81,7 @@ namespace STORAGE {
 		void toggleMVCC();
 		bool isMVCCEnabled();
 		void resetStats();
-		void unlink(File);
+		bool unlink(File);
 
 	protected:
 		DynamicMemoryMappedFile file;
