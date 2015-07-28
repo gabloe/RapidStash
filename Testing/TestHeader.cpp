@@ -2,12 +2,12 @@
 #include "Filesystem.h"
 #include "Testing.h"
 
-std::string data("Hello, World!");
+std::string data(random_string(dataSize));
 
 // Write a file and verify the file header
 
 int TestHeader(STORAGE::Filesystem *fs) {
-	File f = fs->select("TestFile");
+	File &f = fs->select("TestFile");
 	STORAGE::IO::Writer writer = fs->getWriter(f);
 	fs->lock(f, STORAGE::IO::EXCLUSIVE);
 	{

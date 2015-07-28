@@ -8,7 +8,7 @@
 #include <Filesystem.h>
 
 static const int numNames = 16;
-static const int stringSize = 2048;
+static const int dataSize = 4096;
 static const int numThreads = 32;
 static const int numWriters = 256;
 static const int numReaders = 256;

@@ -8,12 +8,12 @@
 int TestReadWrite(STORAGE::Filesystem *fs) {
 	static unsigned int test;
 
-	File file = fs->select("TestFile");
+	File &file = fs->select("TestFile");
 	STORAGE::IO::SafeWriter writer = fs->getSafeWriter(file);
 	STORAGE::IO::SafeReader reader = fs->getSafeReader(file);
 
 	std::srand(test++);
-	std::string data = random_string(stringSize);
+	std::string data = random_string(dataSize);
 
 	writer.write(data.c_str(), data.size());
 	std::string res = reader.readString();
