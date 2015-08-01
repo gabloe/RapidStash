@@ -28,7 +28,6 @@ bool fileExists(const char* fname) {
 STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : backingFilename(fname) {
 	// If the backing file does not exist, we need to create it
 	bool createInitial;
-	growing = false;
 
 	int fd;
 	bool exists = fileExists(backingFilename);
@@ -129,12 +128,13 @@ int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, si
 	size_t start = pos + HEADER_SIZE;
 	size_t end = start + len;
 
-	std::unique_lock<std::mutex> lk(growthLock);
-	if (end > mapSize) {
-		grow(end);
+	{
+		std::unique_lock<std::mutex> lk(growthLock);
+		if (end > mapSize) {
+			grow(end);
+		}
+		memcpy(fs + start, data, len);
 	}
-	memcpy(fs + start, data, len);
-	lk.unlock();
 	
 	return 0;
 }
@@ -150,14 +150,11 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 	}
 
 	char *data = NULL;
-	// We cannot read when we are growing.  This prevents out of bound reads.
-	//std::unique_lock<std::mutex> lk(growthLock);
 	
 	data = (char *)malloc(len);
-	if (data != NULL)
+	if (data != NULL) {
 		memcpy(data, fs + start, len);
-
-	//lk.unlock();
+	}
 
 	return data;
 }
@@ -189,7 +186,7 @@ void STORAGE::DynamicMemoryMappedFile::writeHeader() {
 	memcpy(fs, SANITY, sizeof(SANITY));
 	memcpy(fs + sizeof(SANITY), reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
 	memcpy(fs + sizeof(SANITY) + sizeof(VERSION), reinterpret_cast<char*>(&msize), sizeof(msize));
-	msync(fs, HEADER_SIZE, MS_SYNC);
+	msync(fs, HEADER_SIZE, MS_ASYNC);
 }
 
 char *STORAGE::DynamicMemoryMappedFile::readHeader() {
@@ -213,11 +210,9 @@ size_t STORAGE::DynamicMemoryMappedFile::align(size_t amt) {
 }
 
 void STORAGE::DynamicMemoryMappedFile::grow(size_t newSize) {	// Increase the size by some amount
-	growing = true;
 	size_t oldMapSize = mapSize;
 	size_t amt = newSize - oldMapSize;
 	if (amt <= 0) {
-		growing = false;
 		return;
 	}
 	size_t test = (size_t)std::ceil(newSize * GROWTH_FACTOR);
@@ -238,6 +233,4 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t newSize) {	// Increase the si
 		logEvent(ERROR, "Could not remap backing file after growing");
 		shutdown(FAILURE);
 	}
-
-	growing = false;
 }

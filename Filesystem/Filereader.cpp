@@ -26,6 +26,9 @@ STORAGE::IO::Reader::Reader(STORAGE::Filesystem *fs_, File file_) : FileIO(fs_, 
 
 int STORAGE::IO::Reader::readInt() {
 	char *buf = readRaw(sizeof(int));
+	if (buf == NULL) {
+		return -1;
+	}
 	int res;
 	memcpy(&res, buf, sizeof(int));
 	free(buf);
@@ -34,6 +37,9 @@ int STORAGE::IO::Reader::readInt() {
 
 char STORAGE::IO::Reader::readChar() {
 	char *buf = readRaw(1);
+	if (buf == NULL) {
+		return 0;
+	}
 	char res = buf[0];
 	free(buf);
 	return res;
@@ -46,6 +52,9 @@ std::string STORAGE::IO::Reader::readString() {
 
 std::string STORAGE::IO::Reader::readString(FileSize amt) {
 	char *buf = readRaw(amt);
+	if (buf == NULL) {
+		return std::string("");
+	}
 	std::string res(buf, amt);
 	free(buf);
 	return res;
@@ -57,8 +66,7 @@ char *STORAGE::IO::Reader::readRaw() {
 	char *buffer = NULL;
 	try {
 		buffer = readRaw(size);
-	}
-	catch (ReadOutOfBoundsException) {
+	} catch (ReadOutOfBoundsException) {
 		logEvent(ERROR, "Read out of bounds");
 		// Generate bogus buffer
 		buffer = (char*)malloc(size);

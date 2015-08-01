@@ -47,13 +47,13 @@ int TestConcurrentMultiFile(STORAGE::Filesystem *fs) {
 
 	THREADING::ThreadPool pool(numThreads);
 
-	std::thread writeThread([&] {
+	std::thread writeThread([fs, &pool] {
 		for (int i = 0; i < numWriters; ++i) {
 			pool.enqueue([fs, i] {startWriter(fs, i); });
 		}
 	});
 
-	std::thread readThread([&] {
+	std::thread readThread([fs, &pool] {
 		for (int i = 0; i < numReaders; ++i) {
 			std::future<bool> ret = pool.enqueue([fs] {return startReader(fs); });
 			if (!ret.get()) {

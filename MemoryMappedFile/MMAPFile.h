@@ -35,19 +35,12 @@ int ftruncate(int, size_t);
 #include <string>
 #include <cstring>
 #include <mutex>
-#include <condition_variable>
 #include <atomic>
 
 #define GROWTH_FACTOR 1.05 // Grow 5% larger than requested.  This helps to prevent excessive calls to grow
 static short VERSION = 1;
 static char SANITY[] = { 0x0,0x0,0xd,0x1,0xe,0x5,0x0,0xf,0xd,0x0,0x0,0xd,0xa,0xd,0x5 };
 #define HEADER_SIZE sizeof(VERSION) + sizeof(SANITY) + sizeof(size_t)
-
-// Condition variables and mutex to block threads if a growth is in progress
-static std::mutex growthLock;
-static std::condition_variable cvWrite;
-static std::condition_variable cvRead;
-static bool growing;
 
 // Limit the overall size of the file to 4GB for compatibility reasons
 static const size_t maxSize = (size_t)(std::pow(2, 32) - 1);
