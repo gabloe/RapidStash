@@ -65,6 +65,7 @@ namespace STORAGE {
 
 	public:
 		Filesystem(const char* fname);
+		~Filesystem() { free(dir); }
 		void shutdown(int code = SUCCESS);
 		File &select(std::string);
 		void lock(File, IO::LockType);
