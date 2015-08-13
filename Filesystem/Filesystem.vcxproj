@@ -118,7 +118,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\Logging;..\mman-win32;..\MemoryMappedFile;..\RapidStash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <DebugInformationFormat>None</DebugInformationFormat>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AdditionalOptions>/D FILESYSTEM_EXPORTS %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>

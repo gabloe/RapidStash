@@ -6,7 +6,7 @@
 #include <direct.h>
 #endif
 
-int main() {
+void test() {
 	std::vector<TestWrapper_t> fn;
 	fn.push_back([] {return TestWrapper("Read Write", TestReadWrite); });
 	fn.push_back([] {return TestWrapper("File Header", TestHeader); });
@@ -26,11 +26,15 @@ int main() {
 	}
 
 #if defined(_WIN32) || defined(_WIN64)
-	std::cout << "\nPress enter to continue..." << std::endl;
-	std::getchar();
+	//std::cout << "\nPress enter to continue..." << std::endl;
+	//std::getchar();
 #endif
 
 	_rmdir("data");
 
+}
+
+int main() {
+	for (int i = 0; i < 8; ++i) test();
 	return 0;
 }
