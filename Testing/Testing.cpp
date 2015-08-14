@@ -8,14 +8,14 @@
 
 void test() {
 	std::vector<TestWrapper_t> fn;
-	fn.push_back([] {return TestWrapper("Read Write", TestReadWrite); });
-	fn.push_back([] {return TestWrapper("File Header", TestHeader); });
-	fn.push_back([] {return TestWrapper("Concurrent Write", TestConcurrentWrite); });
-	fn.push_back([] {return TestWrapper("Concurrent Read Write", TestConcurrentReadWrite); });
-	fn.push_back([] {return TestWrapper("Concurrent Multi-File", TestConcurrentMultiFile); });
-	fn.push_back([] {return TestWrapper("MVCC", TestMVCC); });
-	fn.push_back([] {return TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
-	fn.push_back([] {return TestWrapper("Unlink", TestUnlink); });
+	fn.push_back([] { TestWrapper("Read Write", TestReadWrite); });
+	fn.push_back([] { TestWrapper("File Header", TestHeader); });
+	fn.push_back([] { TestWrapper("Concurrent Write", TestConcurrentWrite); });
+	fn.push_back([] { TestWrapper("Concurrent Read Write", TestConcurrentReadWrite); });
+	fn.push_back([] { TestWrapper("Concurrent Multi-File", TestConcurrentMultiFile); });
+	fn.push_back([] { TestWrapper("MVCC", TestMVCC); });
+	fn.push_back([] { TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
+	fn.push_back([] { TestWrapper("Unlink", TestUnlink); });
 
 	_mkdir("data");
 
@@ -24,6 +24,7 @@ void test() {
 	for (auto &func : fn) {
 		func();
 	}
+	std::cout << std::setfill(' ');
 
 #if defined(_WIN32) || defined(_WIN64)
 	//std::cout << "\nPress enter to continue..." << std::endl;
@@ -35,6 +36,6 @@ void test() {
 }
 
 int main() {
-	for (int i = 0; i < 8; ++i) test();
+	for (int i = 0; i < 1024; ++i) test();
 	return 0;
 }

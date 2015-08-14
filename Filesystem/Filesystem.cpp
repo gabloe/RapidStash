@@ -478,6 +478,12 @@ STORAGE::FileDirectory *STORAGE::Filesystem::readFileDirectory() {
 		pos += sizeof(FilePosition);
 	}
 
+	for (FileIndex i = directory->numFiles; i < MAXFILES; ++i) {
+		directory->headers[i].size = 0;
+		directory->headers[i].version = -1;
+		directory->headers[i].next = 0;
+	}
+
 	free(buffer);
 	return directory;
 }
