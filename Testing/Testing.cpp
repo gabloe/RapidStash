@@ -4,9 +4,14 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <direct.h>
+
+const char DIR_SEPARATOR = '\\';
+#else
+const char DIR_SEPARATOR = '/';
 #endif
 
-std::string ConvertErrorToString(BOOL errorMessageID) {
+std::string ConvertLastErrorToString(void) {
+	auto errorMessageID = GetLastError();
 	if (errorMessageID == 0) return std::string();
 
 	LPSTR messageBuffer = nullptr;
@@ -14,39 +19,36 @@ std::string ConvertErrorToString(BOOL errorMessageID) {
 		NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
 
 	std::string result(messageBuffer, size);
-
+	
 	LocalFree(messageBuffer);
 
 	return result;
 }
 
+// Given a directory remove the files located within it and then the directory itself
 void removeDirectory(std::string directory) {
-
-	char buffer[512];
-
+	char buffer[_MAX_DIR];
 	size_t len = GetCurrentDirectory(512, buffer);
 
 	std::string CWD(buffer, len);
-
-	directory = CWD + "\\" + directory;
+	directory = CWD + DIR_SEPARATOR + directory;
 
 	WIN32_FIND_DATA data;
-	HANDLE h = FindFirstFile((directory + "\\*").c_str(), &data);
-	if (h) {
+	HANDLE h = FindFirstFile((directory + DIR_SEPARATOR + "*").c_str(), &data);
+	if (h != NULL) {
+		SetFileAttributes(directory.c_str(), FILE_ATTRIBUTE_NORMAL);
+		FindNextFile(h, &data); // ..
+		FindNextFile(h, &data); // .
 		do {
-			std::string filename = CWD + "\\" + data.cFileName;
+			std::string filename = directory + DIR_SEPARATOR + data.cFileName;
+			if (!SetFileAttributes(filename.c_str(), FILE_ATTRIBUTE_NORMAL)) {
+				std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
+				std::cout << "File: " << filename << std::endl;
+			}
 			BOOL result = DeleteFileA(filename.c_str());
-			switch (result) {
-				case ERROR_FILE_NOT_FOUND:
-					std::cout << "File not found: " << filename << std::endl;
-					break;
-				case ERROR_ACCESS_DENIED:
-					std::cout << "Access denied for file: " << filename << std::endl;
-					break;
-				default:
-					if(result != 0) {
-						std::cout << "Error: " << ConvertErrorToString(result) << std::endl;
-					}
+			if (result == 0) {
+				std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
+				std::cout << "File: " << filename << std::endl;
 			}
 		} while (FindNextFile(h,&data));
 		FindClose(h);
@@ -84,7 +86,7 @@ void test() {
 
 }
 
-const size_t NumTests = 16;
+const size_t NumTests = 4;
 
 int main() {
 	for (size_t i = 0; i < NumTests; ++i) test();
