@@ -125,9 +125,11 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code) {
 
 const size_t MaxFileSize = 1 << 30; // No file can be more than a GB
 
+#include <cassert>
+
 int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, size_t pos) {
 
-	assert(len < MaxFileSize);
+	assert(len <= MaxFileSize);
 
 	// If we are trying to write beyond the end of the file, we must grow.
 	size_t start = pos + HEADER_SIZE;
