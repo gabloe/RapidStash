@@ -25,12 +25,29 @@ std::string ConvertLastErrorToString(void) {
 	return result;
 }
 
-// Given a directory remove the files located within it and then the directory itself
-void removeDirectory(std::string directory) {
+std::string getCurrentDirectory() {
 	char buffer[_MAX_DIR];
 	size_t len = GetCurrentDirectory(512, buffer);
+	return std::string(buffer, len);
+}
 
-	std::string CWD(buffer, len);
+void testDelete(std::string directory) {
+	directory = getCurrentDirectory() + DIR_SEPARATOR + directory + DIR_SEPARATOR + "*";
+	SHFILEOPSTRUCT opt;
+	memset(&opt, 0, sizeof(SHFILEOPSTRUCT));
+	opt.wFunc = FO_DELETE;
+	opt.pFrom = directory.c_str();
+
+	std::cout << "Removing " << directory << std::endl;
+
+	if (!SHFileOperation(&opt)) {
+		std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
+	}
+}
+
+// Given a directory remove the files located within it and then the directory itself
+void removeDirectory(std::string directory) {
+	std::string CWD = getCurrentDirectory();
 	directory = CWD + DIR_SEPARATOR + directory;
 
 	WIN32_FIND_DATA data;
@@ -68,7 +85,16 @@ void test() {
 	fn.push_back([] { TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
 	fn.push_back([] { TestWrapper("Unlink", TestUnlink); });
 
-	_mkdir("data");
+	SECURITY_ATTRIBUTES attr;
+	attr.nLength = sizeof(SECURITY_ATTRIBUTES);
+	attr.bInheritHandle = true;
+	attr.lpSecurityDescriptor = NULL;
+
+	if (!CreateDirectory("data", &attr)) {
+		std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
+		std::cout << "Could not create data directory" << std::endl;
+		_mkdir("data");
+	}
 
 	std::cout << "Test Results:" << std::endl;
 	std::cout << std::setfill('-');
@@ -82,11 +108,11 @@ void test() {
 	//std::getchar();
 #endif
 
-	removeDirectory("data");
-
+	//removeDirectory("data");
+	testDelete("data");
 }
 
-const size_t NumTests = 4;
+const size_t NumTests = 1;
 
 int main() {
 	for (size_t i = 0; i < NumTests; ++i) test();
