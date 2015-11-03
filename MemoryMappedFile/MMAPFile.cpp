@@ -150,6 +150,11 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 	}
 
 	char *data = NULL;
+
+	if (len > 1000000000) {
+		logEvent(ERROR, "Attempting to allocate to much space");
+		shutdown(FAILURE);
+	}
 	
 	data = (char *)malloc(len);
 	if (data != NULL) {

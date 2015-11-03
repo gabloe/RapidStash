@@ -105,7 +105,8 @@ char *STORAGE::IO::Reader::readRaw(FileSize amt) {
 		throw ReadOutOfBoundsException();
 	}
 
-	char *data = fs->file.raw_read(loc + STORAGE::FileHeader::SIZE + position, amt);
+	size_t offset = loc + STORAGE::FileHeader::SIZE + position;
+	char *data = fs->file.raw_read(offset, amt);
 
 	bytesRead += amt;
 	numReads++;
