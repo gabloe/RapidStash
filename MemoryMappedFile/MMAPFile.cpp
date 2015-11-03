@@ -123,7 +123,12 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code) {
 	return code;
 }
 
+const size_t MaxFileSize = 1 << 30; // No file can be more than a GB
+
 int STORAGE::DynamicMemoryMappedFile::raw_write(const char *data, size_t len, size_t pos) {
+
+	assert(len < MaxFileSize);
+
 	// If we are trying to write beyond the end of the file, we must grow.
 	size_t start = pos + HEADER_SIZE;
 	size_t end = start + len;
@@ -156,9 +161,17 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 		shutdown(FAILURE);
 	}
 	
+
+
 	data = (char *)malloc(len);
 	if (data != NULL) {
-		memcpy(data, fs + start, len);
+		{
+			std::unique_lock<std::mutex> lk(growthLock);
+			if (end > mapSize) {
+				grow(end);
+			}
+			memcpy(data, fs + start, len);
+		}
 	}
 
 	return data;
