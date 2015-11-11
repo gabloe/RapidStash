@@ -114,11 +114,14 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code) {
 	}
 	writeHeader();
 
-	munmap(fs, mapSize);
+	if (munmap(fs, mapSize)) {
+		std::cout << "Could not unmap" << std::endl;
+	}
 
 	if (logOut.is_open()) {
 		logOut.close();
 	}
+
 
 	return code;
 }

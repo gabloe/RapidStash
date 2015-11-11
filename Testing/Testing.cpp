@@ -62,8 +62,8 @@ void removeDirectory(std::string directory) {
 				std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
 				std::cout << "File: " << filename << std::endl;
 			}
-			BOOL result = DeleteFileA(filename.c_str());
-			if (result == 0) {
+			int result = _unlink(filename.c_str());
+			if (result != 0) {
 				std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
 				std::cout << "File: " << filename << std::endl;
 			}
@@ -75,6 +75,9 @@ void removeDirectory(std::string directory) {
 }
 
 void test() {
+
+	removeDirectory("data");
+
 	std::vector<TestWrapper_t> fn;
 	//fn.push_back([] { TestWrapper("Read Write", TestReadWrite); });
 	//fn.push_back([] { TestWrapper("File Header", TestHeader); });
@@ -108,8 +111,8 @@ void test() {
 	//std::getchar();
 #endif
 
-	//removeDirectory("data");
-	testDelete("data");
+	removeDirectory("data");
+	//testDelete("data");
 }
 
 const size_t NumTests = 1;
