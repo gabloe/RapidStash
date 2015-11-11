@@ -46,8 +46,6 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	// If the backing file does not exist, we need to create it
 	bool createInitial;
 
-	std::cout << "Constructor: " << std::string(fname) << std::endl;
-
 	bool exists = fileExists(backingFilename);
 
 	fHandle = getFileDescriptor(backingFilename, !exists);
@@ -61,9 +59,6 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 		mapSize = INITIAL_SIZE;
 	} else {
 		// Read file size from the host filesystem
-		//_lseek(fd, 0L, SEEK_END);
-		//mapSize = _tell(fd);
-		//_lseek(fd, 0L, SEEK_SET);
 		mapSize = GetFileSize(fHandle, NULL);
 		logEvent(EVENT, "Detected map size of " + toString(mapSize));
 	}
@@ -72,13 +67,11 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	
 	if (fs == MAP_FAILED) {
 		logEvent(ERROR, "Could not map backing file");
-		//_close(fd);
 		shutdown(FAILURE);
 	}
 
 	if (createInitial) {
 		logEvent(EVENT, "Creating initial file structure");
-		//ftruncate(fd, mapSize);
 		SetFilePointer(fHandle, mapSize, NULL, FILE_BEGIN);
 		SetEndOfFile(fHandle);
 		SetFilePointer(fHandle, 0, NULL, FILE_BEGIN);
@@ -116,9 +109,6 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 		// Cleanup
 		free((void*)header);
 	}
-
-	// We don't actually need the file descriptor any longer
-	//_close(fd);
 }
 
 /*
@@ -135,24 +125,16 @@ int STORAGE::DynamicMemoryMappedFile::shutdown(const int code) {
 	writeHeader();
 
 	if (munmap(fs, mapSize)) {
-		std::cout << "Could not unmap" << std::endl;
-	}else {
-		std::cout << "Unmapped" << std::endl;
+		logEvent(ERROR,"ERROR (CloseHandle): " + ConvertLastErrorToString());
 	}
 	
 	if (!CloseHandle(fHandle)) {
-		std::cout << "ERROR (CloseHandle): " << ConvertLastErrorToString() << std::endl;
+		logEvent(ERROR,"ERROR (CloseHandle): " + ConvertLastErrorToString());
 	}
-
-	
-
-	//_close(fd);
 
 	if (logOut.is_open()) {
 		logOut.close();
 	}
-
-	
 
 	return code;
 }
@@ -197,8 +179,6 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
 		shutdown(FAILURE);
 	}
 	
-
-
 	data = (char *)malloc(len);
 	if (data != NULL) {
 		{
@@ -218,18 +198,18 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
  */
 
 HANDLE STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool create) {
-	int err;
 	if (create) {
 		fHandle = CreateFile(fname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-		//err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM | _O_CREAT, _SH_DENYNO, _S_IREAD | _S_IWRITE);
 	} else {
 		fHandle = CreateFile(fname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING , FILE_ATTRIBUTE_NORMAL, NULL);
-		//err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM, _SH_DENYNO, _S_IREAD | _S_IWRITE);
 	}
 
 	if (fHandle == INVALID_HANDLE_VALUE) {
 		logEvent(ERROR, "Unable to open backing file, aborted with error " + toString(fHandle));
 		shutdown(FAILURE);
+	}
+	else {
+		logEvent(EVENT, "Create the file " + std::string(fname));
 	}
 	return fHandle;
 }
@@ -276,8 +256,6 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t newSize) {	// Increase the si
 	logEvent(EVENT, "Growing filesystem to " + toString(mapSize));
 #endif
 
-	//fd = getFileDescriptor(backingFilename);
-	//ftruncate(fd, mapSize);
 	SetFilePointer(fHandle, mapSize, NULL, FILE_BEGIN);
 	SetEndOfFile(fHandle);
 	SetFilePointer(fHandle, 0, NULL, FILE_BEGIN);

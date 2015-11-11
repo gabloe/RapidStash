@@ -45,13 +45,11 @@ void removeDirectory(std::string directory) {
 		do {
 			std::string filename = directory + DIR_SEPARATOR + data.cFileName;
 			if (!SetFileAttributes(filename.c_str(), FILE_ATTRIBUTE_NORMAL)) {
-				std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
-				std::cout << "File: " << filename << std::endl;
+				logEvent(ERROR,filename + ": " + ConvertLastErrorToString());
 			}
 			int result = _unlink(filename.c_str());
 			if (result != 0) {
-				std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
-				std::cout << "File: " << filename << std::endl;
+				logEvent(ERROR, filename + ": " + ConvertLastErrorToString());
 			}
 		} while (FindNextFile(h,&data));
 		FindClose(h);
@@ -78,8 +76,7 @@ void test() {
 	attr.lpSecurityDescriptor = NULL;
 
 	if (!CreateDirectory("data", &attr)) {
-		std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
-		std::cout << "Could not create data directory" << std::endl;
+		logEvent(ERROR,"data: " + ConvertLastErrorToString());
 		_mkdir("data");
 	}
 
