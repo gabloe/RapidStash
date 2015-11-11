@@ -6,6 +6,8 @@
 *  Written by: Gabriel J. Loewen
 */
 
+#include <Windows.h>
+
 #ifdef MMAPFILE_EXPORTS
 #define MMAPFILEDLL_API __declspec(dllexport) 
 #else
@@ -89,11 +91,13 @@ namespace STORAGE {
 		int numPages;
 		size_t mapSize;
 		std::mutex growthLock;
+		HANDLE fHandle;
+		intptr_t fd;
 
 		/*
 		 *Private methods
 		 */
-		int getFileDescriptor(const char*, bool = true);
+		HANDLE getFileDescriptor(const char*, bool = true);
 		void writeHeader();
 		char *readHeader();
 		bool sanityCheck(const char*);

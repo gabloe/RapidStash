@@ -31,20 +31,6 @@ std::string getCurrentDirectory() {
 	return std::string(buffer, len);
 }
 
-void testDelete(std::string directory) {
-	directory = getCurrentDirectory() + DIR_SEPARATOR + directory + DIR_SEPARATOR + "*";
-	SHFILEOPSTRUCT opt;
-	memset(&opt, 0, sizeof(SHFILEOPSTRUCT));
-	opt.wFunc = FO_DELETE;
-	opt.pFrom = directory.c_str();
-
-	std::cout << "Removing " << directory << std::endl;
-
-	if (!SHFileOperation(&opt)) {
-		std::cout << "ERROR: " << ConvertLastErrorToString() << std::endl;
-	}
-}
-
 // Given a directory remove the files located within it and then the directory itself
 void removeDirectory(std::string directory) {
 	std::string CWD = getCurrentDirectory();
@@ -76,16 +62,14 @@ void removeDirectory(std::string directory) {
 
 void test() {
 
-	removeDirectory("data");
-
 	std::vector<TestWrapper_t> fn;
-	//fn.push_back([] { TestWrapper("Read Write", TestReadWrite); });
-	//fn.push_back([] { TestWrapper("File Header", TestHeader); });
-	//fn.push_back([] { TestWrapper("Concurrent Write", TestConcurrentWrite); });
-	//fn.push_back([] { TestWrapper("Concurrent Read Write", TestConcurrentReadWrite); });
-	//fn.push_back([] { TestWrapper("Concurrent Multi-File", TestConcurrentMultiFile); });
-	//fn.push_back([] { TestWrapper("MVCC", TestMVCC); });
-	fn.push_back([] { TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
+	fn.push_back([] { TestWrapper("Read Write", TestReadWrite); });
+	fn.push_back([] { TestWrapper("File Header", TestHeader); });
+	fn.push_back([] { TestWrapper("Concurrent Write", TestConcurrentWrite); });
+	fn.push_back([] { TestWrapper("Concurrent Read Write", TestConcurrentReadWrite); });
+	fn.push_back([] { TestWrapper("Concurrent Multi-File", TestConcurrentMultiFile); });
+	fn.push_back([] { TestWrapper("MVCC", TestMVCC); });
+	//fn.push_back([] { TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
 	fn.push_back([] { TestWrapper("Unlink", TestUnlink); });
 
 	SECURITY_ATTRIBUTES attr;
@@ -111,13 +95,12 @@ void test() {
 	//std::getchar();
 #endif
 
-	removeDirectory("data");
-	//testDelete("data");
 }
 
 const size_t NumTests = 1;
 
 int main() {
 	for (size_t i = 0; i < NumTests; ++i) test();
+	removeDirectory("data");
 	return 0;
 }

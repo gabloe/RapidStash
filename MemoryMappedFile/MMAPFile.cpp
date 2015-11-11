@@ -6,8 +6,25 @@
 *  Written by: Gabriel J. Loewen
 */
 
+
 #include "MMAPFile.h"
 #include "Logging.h"
+
+
+std::string ConvertLastErrorToString(void) {
+	auto errorMessageID = GetLastError();
+	if (errorMessageID == 0) return std::string();
+
+	LPSTR messageBuffer = nullptr;
+	size_t size = FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+	std::string result(messageBuffer, size);
+
+	LocalFree(messageBuffer);
+
+	return result;
+}
 
 // Trying to support cross compatibility
 #if defined(_WIN32) || defined(_WIN64)
@@ -29,9 +46,13 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	// If the backing file does not exist, we need to create it
 	bool createInitial;
 
-	int fd;
+	std::cout << "Constructor: " << std::string(fname) << std::endl;
+
 	bool exists = fileExists(backingFilename);
-	fd = getFileDescriptor(backingFilename, !exists);
+
+	fHandle = getFileDescriptor(backingFilename, !exists);
+	fd = _open_osfhandle((intptr_t)fHandle, _O_WRONLY);
+
 	isNewFile = !exists;
 	createInitial = !exists;
 
@@ -40,24 +61,27 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 		mapSize = INITIAL_SIZE;
 	} else {
 		// Read file size from the host filesystem
-		_lseek(fd, 0L, SEEK_END);
-		mapSize = _tell(fd);
-		_lseek(fd, 0L, SEEK_SET);
-		std::ostringstream os;
-		os << mapSize;
-		logEvent(EVENT, "Detected map size of " + os.str());
+		//_lseek(fd, 0L, SEEK_END);
+		//mapSize = _tell(fd);
+		//_lseek(fd, 0L, SEEK_SET);
+		mapSize = GetFileSize(fHandle, NULL);
+		logEvent(EVENT, "Detected map size of " + toString(mapSize));
 	}
 
 	fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	
 	if (fs == MAP_FAILED) {
 		logEvent(ERROR, "Could not map backing file");
-		_close(fd);
+		//_close(fd);
 		shutdown(FAILURE);
 	}
 
 	if (createInitial) {
 		logEvent(EVENT, "Creating initial file structure");
-		ftruncate(fd, mapSize);
+		//ftruncate(fd, mapSize);
+		SetFilePointer(fHandle, mapSize, NULL, FILE_BEGIN);
+		SetEndOfFile(fHandle);
+		SetFilePointer(fHandle, 0, NULL, FILE_BEGIN);
 		writeHeader();
 	} else {
 		logEvent(EVENT, "Reading file structure");
@@ -86,10 +110,7 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 
 		// mmap over the previous region
 		if (msize != mapSize) {
-			std::ostringstream os, os2;
-			os << msize;
-			os2 << mapSize;
-			logEvent(EVENT, "File size mismatch, read " + os.str() + ", should be " + os2.str());
+			logEvent(EVENT, "File size mismatch, read " + toString(msize) + ", should be " + toString(mapSize));
 		}
 #endif
 		// Cleanup
@@ -97,7 +118,7 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
 	}
 
 	// We don't actually need the file descriptor any longer
-	_close(fd);
+	//_close(fd);
 }
 
 /*
@@ -105,23 +126,33 @@ STORAGE::DynamicMemoryMappedFile::DynamicMemoryMappedFile(const char* fname) : b
  */
 
 int STORAGE::DynamicMemoryMappedFile::shutdown(const int code) {
-	std::stringstream codeStr;
-	codeStr << code;
-	logEvent(EVENT, "Shutting down with code " + codeStr.str());
+	logEvent(EVENT, "Shutting down with code " + toString(code));
 	if (code != SUCCESS) {
 		logEvent(ERROR, "Shutdown failure");
 		exit(code);
 	}
+	
 	writeHeader();
 
 	if (munmap(fs, mapSize)) {
 		std::cout << "Could not unmap" << std::endl;
+	}else {
+		std::cout << "Unmapped" << std::endl;
 	}
+	
+	if (!CloseHandle(fHandle)) {
+		std::cout << "ERROR (CloseHandle): " << ConvertLastErrorToString() << std::endl;
+	}
+
+	
+
+	//_close(fd);
 
 	if (logOut.is_open()) {
 		logOut.close();
 	}
 
+	
 
 	return code;
 }
@@ -186,21 +217,21 @@ char *STORAGE::DynamicMemoryMappedFile::raw_read(size_t pos, size_t len, size_t 
  * Private Methods
  */
 
-int STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool create) {
-	int fd;
+HANDLE STORAGE::DynamicMemoryMappedFile::getFileDescriptor(const char *fname, bool create) {
 	int err;
 	if (create) {
-		err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM | _O_CREAT, _SH_DENYNO, _S_IREAD | _S_IWRITE);
+		fHandle = CreateFile(fname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+		//err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM | _O_CREAT, _SH_DENYNO, _S_IREAD | _S_IWRITE);
 	} else {
-		err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM, _SH_DENYNO, _S_IREAD | _S_IWRITE);
+		fHandle = CreateFile(fname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING , FILE_ATTRIBUTE_NORMAL, NULL);
+		//err = _sopen_s(&fd, fname, _O_RDWR | _O_BINARY | _O_RANDOM, _SH_DENYNO, _S_IREAD | _S_IWRITE);
 	}
-	if (err != 0) {
-		std::ostringstream os;
-		os << err;
-		logEvent(ERROR, "Unable to open backing file, aborted with error " + os.str());
+
+	if (fHandle == INVALID_HANDLE_VALUE) {
+		logEvent(ERROR, "Unable to open backing file, aborted with error " + toString(fHandle));
 		shutdown(FAILURE);
 	}
-	return fd;
+	return fHandle;
 }
 
 void STORAGE::DynamicMemoryMappedFile::writeHeader() {
@@ -242,15 +273,17 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t newSize) {	// Increase the si
 	mapSize = align(test > maxSize ? maxSize : test);
 
 #if EXTRATESTING
-	std::ostringstream os;
-	os << mapSize;
-	logEvent(EVENT, "Growing filesystem to " + os.str());
+	logEvent(EVENT, "Growing filesystem to " + toString(mapSize));
 #endif
 
-	int fd = getFileDescriptor(backingFilename);
-	ftruncate(fd, mapSize);
-	fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	_close(fd);
+	//fd = getFileDescriptor(backingFilename);
+	//ftruncate(fd, mapSize);
+	SetFilePointer(fHandle, mapSize, NULL, FILE_BEGIN);
+	SetEndOfFile(fHandle);
+	SetFilePointer(fHandle, 0, NULL, FILE_BEGIN);
+
+	fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED,fd, 0);
+	
 	if (fs == MAP_FAILED) {
 		// Uhoh...
 		logEvent(ERROR, "Could not remap backing file after growing");

@@ -24,9 +24,7 @@ STORAGE::Filesystem::Filesystem(const char* fname) : file(fname), shuttingDown(f
 	} else {
 		logEvent(EVENT, "Backing file exists, populating lookup table");
 		dir = readFileDirectory();
-		std::ostringstream os;
-		os << dir->numFiles;
-		logEvent(EVENT, "Number of stored files is " + os.str());
+		logEvent(EVENT, "Number of stored files is " + toString(dir->numFiles));
 
 		// Populate lookup table
 		for (File i = 0; i < dir->numFiles; ++i) {

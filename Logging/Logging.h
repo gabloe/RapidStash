@@ -34,6 +34,10 @@
 static const char* LOGPATH = "eventlog.log";
 static std::ofstream logOut;
 
+#ifdef ERROR
+#undef ERROR
+#endif
+
 enum LogEventType {
 	ERROR,
 	WARNING,
@@ -93,9 +97,7 @@ public:
 	{}
 
 	void operator()(LogEventType type, std::string msg) {
-		std::ostringstream lineStr;
-		lineStr << line_;
-		std::string debuggingMsg = "(" + file_ + "::" + caller_ + ":" + lineStr.str() + ")";
+		std::string debuggingMsg = "(" + file_ + "::" + caller_ + ":" + toString(line_) + ")";
 		std::ostringstream newMsg;
 		newMsg << std::setw(55) << std::left << msg << std::right << debuggingMsg;
 		logEvent(type, newMsg.str());

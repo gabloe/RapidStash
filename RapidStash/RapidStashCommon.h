@@ -33,7 +33,17 @@ static int _sopen_s(int *fd, const char *fname, int oflags, int shflags, int pmo
 {                                                 
 	*fd = open(fname,oflags);                 
 	return 0;                                
-}                                                 
+}
+#else
+
+#include <sstream>
+
+template<typename T> 
+std::string toString(T s) {
+	std::stringstream ss;
+	ss << s;
+	return ss.str();
+}
 #endif
 
 // Typedefs to make testing easier
