@@ -97,7 +97,9 @@ void test() {
 const size_t NumTests = 1;
 
 int main() {
+	char c;
 	for (size_t i = 0; i < NumTests; ++i) test();
+	std::cin >> c;
 	removeDirectory("data");
 	return 0;
 }
