@@ -259,7 +259,7 @@ void STORAGE::DynamicMemoryMappedFile::grow(size_t newSize) {	// Increase the si
 	SetFilePointer(fHandle, mapSize, NULL, FILE_BEGIN);
 	SetEndOfFile(fHandle);
 	SetFilePointer(fHandle, 0, NULL, FILE_BEGIN);
-
+	munmap(fs, mapSize);
 	fs = (char*)mmap((void*)NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED,fd, 0);
 	
 	if (fs == MAP_FAILED) {
