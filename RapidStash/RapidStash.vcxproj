@@ -25,6 +25,9 @@
     <ClCompile Include="MainStash.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Filesystem\Filesystem.vcxproj">
+      <Project>{0fb3aa1c-3b48-4987-86a4-78f1305ee19f}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\gason\gason.vcxproj">
       <Project>{2d33ada6-37a1-49e6-b574-16b426ce6081}</Project>
     </ProjectReference>
@@ -121,7 +124,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../gason</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../gason;../FileSystem;../MemoryMappedFile;../mman-win32;../Logging</AdditionalIncludeDirectories>
       <AdditionalOptions>
       </AdditionalOptions>
     </ClCompile>

@@ -29,8 +29,7 @@ struct JsonNode;
 #define JSON_VALUE_TAG_MASK 0xF
 #define JSON_VALUE_TAG_SHIFT 47
 
-
-JSON_API union JsonValue {
+union JsonValue {
     uint64_t ival;
     double fval;
 
@@ -71,7 +70,7 @@ struct JsonNode {
     char *key;
 };
 
-JSON_API struct JsonIterator {
+struct JsonIterator {
     JsonNode *p;
 
     void operator++() {
@@ -108,7 +107,7 @@ inline JsonIterator end(JsonValue) {
     XX(BREAKING_BAD, "breaking bad")                 \
     XX(ALLOCATION_FAILURE, "allocation failure")
 
-JSON_API enum JsonErrno {
+enum JsonErrno {
 #define XX(no, str) JSON_##no,
     JSON_ERRNO_MAP(XX)
 #undef XX

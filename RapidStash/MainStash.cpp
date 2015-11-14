@@ -5,19 +5,21 @@
 #include <string>
 #include <gason.h>
 
+#include <FileSystem.h>
+
 #include <chrono>
 
-void performance(std::string* msg) {
+void performance(std::string& msg) {
 	const int iterations = 100000;
 	char* herp = new char[1024*1024];
 	char* endptr = nullptr;
 
 	JsonAllocator allocator;
 
-	std::cout << "Parsing: " << *msg << std::endl;
+	std::cout << "Parsing: " << msg << std::endl;
 	auto start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < iterations; ++i) {
-		memcpy(herp, msg->c_str(), msg->length() + 1);
+		memcpy(herp, msg.c_str(), msg.length() + 1);
 		JsonValue value;
 
 		int status = jsonParse(herp, &endptr, &value, allocator);
@@ -105,10 +107,28 @@ int main(int argc, char* argv[]) {
 
 	tests.push_back(ss.str());
 
+	STORAGE::Filesystem fs("derp.txt");
+	
 	for (int i = 0; i < tests.size(); ++i) {
 		std::string* ref = &(tests[i]);
-		performance(ref);
+
+		std::string fName = "test" + toString(i);
+		File file;
+		if (!fs.exists(fName)) {
+			std::cout << "Creating" << std::endl;
+			file = fs.select(fName);
+			STORAGE::IO::Writer writer = fs.getWriter(file);
+			writer.write(ref->c_str(), ref->length() + 1);
+		}
+		else {
+			file = fs.select(fName);
+			std::cout << "Exists" << std::endl;
+		}
+		STORAGE::IO::Reader reader = fs.getReader(file);
+		performance(reader.readString());
 	}
+
+	fs.shutdown();
 	std::cin.get();
 	return 0;
 }
