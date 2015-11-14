@@ -10,11 +10,14 @@ void performance(std::string msg) {
 	const int iterations = 100000;
 	char herp[1024];
 	char* endptr = nullptr;
+
+	JsonAllocator allocator;
+
+
 	std::cout << "Parsing: " << msg << std::endl;
 	auto start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < iterations; ++i) {
 		strcpy_s(herp, msg.c_str());
-		JsonAllocator allocator;
 		JsonValue value;
 
 		int status = jsonParse(herp, &endptr, &value, allocator);
@@ -31,6 +34,7 @@ int main(int argc, char* argv[]) {
 	
 	std::vector<std::string> tests;
 
+	// Linear JSON
 	tests.push_back("{\"a\" : 1,}");
 	tests.push_back("{\"a\" : 1,\"b\" : 1}");
 	tests.push_back("{\"a\" : 1,\"b\" : 1,\"c\" : 1}");
@@ -40,6 +44,19 @@ int main(int argc, char* argv[]) {
 	tests.push_back("{\"a\" : 1,\"b\" : 1,\"c\" : 1,\"d\" : 1,\"e\" : 1,\"f\" : 1,\"g\" : 1}");
 	tests.push_back("{\"a\" : 1,\"b\" : 1,\"c\" : 1,\"d\" : 1,\"e\" : 1,\"f\" : 1, \"g\" : 1, \"h\" : 1}");
 	tests.push_back("{\"a\" : 1,\"b\" : 1,\"c\" : 1,\"d\" : 1,\"e\" : 1,\"f\" : 1, \"g\" : 1, \"h\" : 1, \"i\" : 1}");
+
+	// Sub JSON objects
+	tests.push_back("{ \"a\" : { \"b\" : 5} }");
+	tests.push_back("{ \"a\" : { \"b\" : { \"c\" : 5 } } }");
+	tests.push_back("{ \"a\" : { \"b\" : { \"c\" : { \"d\" : 5 } } } }");
+
+	// Array
+	tests.push_back(" \"a\" : [ 1 ]");
+	tests.push_back(" \"a\" : [ 1 2 ]");
+	tests.push_back(" \"a\" : [ 1 2 3 ]");
+	tests.push_back(" \"a\" : [ 1 2 3 4 ]");
+	tests.push_back(" \"a\" : [ 1 2 3 4 5 ]");
+	tests.push_back(" \"a\" : [ 1 2 3 4 5 6 ]");
 
 	for (int i = 0; i < tests.size(); ++i) {
 		performance(tests[i]);
