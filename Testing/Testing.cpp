@@ -61,14 +61,14 @@ void removeDirectory(std::string directory) {
 void test() {
 
 	std::vector<TestWrapper_t> fn;
-	fn.push_back([] { TestWrapper("Read Write", TestReadWrite); });
-	fn.push_back([] { TestWrapper("File Header", TestHeader); });
-	fn.push_back([] { TestWrapper("Concurrent Write", TestConcurrentWrite); });
-	fn.push_back([] { TestWrapper("Concurrent Read Write", TestConcurrentReadWrite); });
-	fn.push_back([] { TestWrapper("Concurrent Multi-File", TestConcurrentMultiFile); });
+	//fn.push_back([] { TestWrapper("Read Write", TestReadWrite); });
+	//fn.push_back([] { TestWrapper("File Header", TestHeader); });
+	//fn.push_back([] { TestWrapper("Concurrent Write", TestConcurrentWrite); });
+	//fn.push_back([] { TestWrapper("Concurrent Read Write", TestConcurrentReadWrite); });
+	//fn.push_back([] { TestWrapper("Concurrent Multi-File", TestConcurrentMultiFile); });
 	fn.push_back([] { TestWrapper("MVCC", TestMVCC); });
 	fn.push_back([] { TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
-	fn.push_back([] { TestWrapper("Unlink", TestUnlink); });
+	//fn.push_back([] { TestWrapper("Unlink", TestUnlink); });
 
 	SECURITY_ATTRIBUTES attr;
 	attr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -91,12 +91,13 @@ void test() {
 	//std::cout << "\nPress enter to continue..." << std::endl;
 	//std::getchar();
 #endif
-	//removeDirectory("data");
+	removeDirectory("data");
 }
 
-const size_t NumTests = 1;
+const size_t NumTests = 512;
 
 int main() {
+	removeDirectory("data");
 	for (size_t i = 0; i < NumTests; ++i) test();
 	return 0;
 }

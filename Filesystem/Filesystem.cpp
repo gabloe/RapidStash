@@ -321,7 +321,6 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 					// If there are writers, but there is a previous version available, we can read it
 					bool readLockTest = fl.writers > 0 && dir->headers[file].version > 0;
 					if (readLockTest) { return true; }
-
 				} else if (type == IO::EXCLUSIVE) {
 					// The file will get a new version, immediately stop waiting
 					return true;

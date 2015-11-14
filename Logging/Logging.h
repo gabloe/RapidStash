@@ -21,7 +21,7 @@
 #define COUTLOGGING		  0
 #define EXTRATESTING	  0			  // Perform and log verification tests
 #define THREADLOGGING	  0			  // Enable logging of thread events (lock and unlock)
-#define LOGGING			  0			  // Enable logging
+#define LOGGING			  1			  // Enable logging
 #define LOGDEBUGGING	  0			  // Undefine this if you don't want the log to contain File/Function/Line of caller
 #define SHORTFILENAMES	  0			  // Enable short filenames
 
