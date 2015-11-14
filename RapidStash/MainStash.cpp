@@ -24,6 +24,7 @@ void performance(std::string* msg) {
 		if (status != JSON_OK) {
 			std::cout << "Failure?" << std::endl;
 		}
+		allocator.deallocate();
 	}
 	delete herp;
 	auto end = std::chrono::high_resolution_clock::now();
@@ -100,7 +101,7 @@ int main(int argc, char* argv[]) {
 	for (int i = 1; i < TerribleLength; ++i) {
 		ss << "\"a" << i << "\":" << i << ",";
 	}
-	ss << "\"a1000\":" << TerribleLength << "}";
+	ss << "\"a" << TerribleLength << "\":" << TerribleLength << "}";
 
 	tests.push_back(ss.str());
 
