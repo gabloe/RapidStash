@@ -9,7 +9,7 @@ void performance(char* msg) {
 	const int iterations = 100000;
 	char herp[1024];
 	char* endptr = nullptr;
-	std::cout << "Parsing: " << herp << std::endl;
+	std::cout << "Parsing: " << msg << std::endl;
 	auto start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < iterations; ++i) {
 		strcpy_s(herp, msg);
