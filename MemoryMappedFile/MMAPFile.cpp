@@ -220,7 +220,7 @@ void STORAGE::DynamicMemoryMappedFile::writeHeader() {
 	memcpy(fs, SANITY, sizeof(SANITY));
 	memcpy(fs + sizeof(SANITY), reinterpret_cast<char*>(&VERSION), sizeof(VERSION));
 	memcpy(fs + sizeof(SANITY) + sizeof(VERSION), reinterpret_cast<char*>(&msize), sizeof(msize));
-	msync(fs, HEADER_SIZE, MS_ASYNC);
+	msync(fs, HEADER_SIZE, MS_SYNC);
 }
 
 char *STORAGE::DynamicMemoryMappedFile::readHeader() {

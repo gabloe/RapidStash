@@ -332,7 +332,7 @@ void STORAGE::Filesystem::lock(File file, IO::LockType type) {
 				if (readTest) { return true; }
 
 				// If we want write (exclusive) access, there must not be any unlocked readers or locked writers
-				bool writeTest = type == IO::EXCLUSIVE && fl.readers == 0;
+				bool writeTest = type == IO::EXCLUSIVE && fl.readers == 0 && fl.writers == 0;
 				if (writeTest) { return true; }
 			}
 

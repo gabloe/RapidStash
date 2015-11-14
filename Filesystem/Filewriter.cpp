@@ -28,7 +28,7 @@ void STORAGE::IO::Writer::write(const char *data, FileSize size) {
 
 	FilePosition oldLoc = fs->dir->files[file];
 
-	// If there is not enough excess spacel available, we must create a new file for this write
+	// If there is not enough excess space available, we must create a new file for this write
 	// This generates garbage that may eventually need to be cleaned up.
 	// OR if MVCC is enabled
 	if (size + position > fs->dir->headers[file].virtualSize || fs->isMVCCEnabled()) {

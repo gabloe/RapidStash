@@ -67,7 +67,7 @@ void test() {
 	fn.push_back([] { TestWrapper("Concurrent Read Write", TestConcurrentReadWrite); });
 	fn.push_back([] { TestWrapper("Concurrent Multi-File", TestConcurrentMultiFile); });
 	fn.push_back([] { TestWrapper("MVCC", TestMVCC); });
-	//fn.push_back([] { TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
+	fn.push_back([] { TestWrapper("Concurrent Multi-File MVCC", TestConcurrentMultiFileMVCC); });
 	fn.push_back([] { TestWrapper("Unlink", TestUnlink); });
 
 	SECURITY_ATTRIBUTES attr;
@@ -91,14 +91,12 @@ void test() {
 	//std::cout << "\nPress enter to continue..." << std::endl;
 	//std::getchar();
 #endif
-
+	//removeDirectory("data");
 }
 
 const size_t NumTests = 1;
 
 int main() {
-	char c;
 	for (size_t i = 0; i < NumTests; ++i) test();
-	removeDirectory("data");
 	return 0;
 }
