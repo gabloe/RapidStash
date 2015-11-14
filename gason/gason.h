@@ -4,6 +4,14 @@
 #include <stddef.h>
 #include <assert.h>
 
+
+#ifdef JSON_EXPORTS
+#define JSON_API __declspec(dllexport) 
+#else
+#define JSON_API __declspec(dllimport) 
+#endif
+
+
 enum JsonTag {
     JSON_NUMBER = 0,
     JSON_STRING,
@@ -21,7 +29,8 @@ struct JsonNode;
 #define JSON_VALUE_TAG_MASK 0xF
 #define JSON_VALUE_TAG_SHIFT 47
 
-union JsonValue {
+
+JSON_API union JsonValue {
     uint64_t ival;
     double fval;
 
@@ -62,7 +71,7 @@ struct JsonNode {
     char *key;
 };
 
-struct JsonIterator {
+JSON_API struct JsonIterator {
     JsonNode *p;
 
     void operator++() {
@@ -99,37 +108,28 @@ inline JsonIterator end(JsonValue) {
     XX(BREAKING_BAD, "breaking bad")                 \
     XX(ALLOCATION_FAILURE, "allocation failure")
 
-enum JsonErrno {
+JSON_API enum JsonErrno {
 #define XX(no, str) JSON_##no,
     JSON_ERRNO_MAP(XX)
 #undef XX
 };
 
-const char *jsonStrError(int err);
+JSON_API const char *jsonStrError(int err);
 
-class JsonAllocator {
+class JSON_API JsonAllocator {
+
     struct Zone {
         Zone *next;
         size_t used;
     } *head = nullptr;
 
 public:
-    JsonAllocator() = default;
-    JsonAllocator(const JsonAllocator &) = delete;
-    JsonAllocator &operator=(const JsonAllocator &) = delete;
-    JsonAllocator(JsonAllocator &&x) : head(x.head) {
-        x.head = nullptr;
-    }
-    JsonAllocator &operator=(JsonAllocator &&x) {
-        head = x.head;
-        x.head = nullptr;
-        return *this;
-    }
-    ~JsonAllocator() {
-        deallocate();
-    }
+    JsonAllocator(void);
+	JsonAllocator(JsonAllocator &&x);
+	JsonAllocator &operator=(JsonAllocator &&x);
+	~JsonAllocator();
     void *allocate(size_t size);
     void deallocate();
 };
 
-int jsonParse(char *str, char **endptr, JsonValue *value, JsonAllocator &allocator);
+JSON_API int jsonParse(char *str, char **endptr, JsonValue *value, JsonAllocator &allocator);

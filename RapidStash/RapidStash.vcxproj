@@ -24,6 +24,11 @@
   <ItemGroup>
     <ClCompile Include="MainStash.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\gason\gason.vcxproj">
+      <Project>{2d33ada6-37a1-49e6-b574-16b426ce6081}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D1A40FCD-B4DA-43C3-BF60-1C1D900BFDBE}</ProjectGuid>
     <RootNamespace>RapidStash</RootNamespace>
@@ -89,6 +94,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>../gason</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

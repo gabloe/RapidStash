@@ -1,7 +1,18 @@
 
 #include <iostream>
 
+#include <gason.h>
+
+
 int main(int argc, char* argv[]) {
-	std::cout << "We've got five terrorists going down bakka lakka dakka street!" << std::endl;
+	if (argc != 2) return 0;
+	char *herp = argv[1];
+	JsonValue value;
+	JsonAllocator allocator;
+	char* endptr = nullptr;
+	int status = jsonParse(herp, &endptr, &value, allocator);
+	if (status != JSON_OK) {
+		std::cout << "Failure?" << std::endl;
+	}
 	return 0;
 }

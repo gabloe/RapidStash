@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 14.0.23107.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MMAPFile", "MemoryMappedFile\MemoryMappedFile.vcxproj", "{4846F8C2-B436-4AF0-AA71-4E8D109D010E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2D33ADA6-37A1-49E6-B574-16B426CE6081} = {2D33ADA6-37A1-49E6-B574-16B426CE6081}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mman", "mman-win32\mman.vcxproj", "{F118CC2E-9AED-4DB0-9BF4-028781D97AD1}"
 EndProject
@@ -22,6 +25,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Testing", "Testing\Testing.
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RapidStash", "RapidStash\RapidStash.vcxproj", "{D1A40FCD-B4DA-43C3-BF60-1C1D900BFDBE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2D33ADA6-37A1-49E6-B574-16B426CE6081} = {2D33ADA6-37A1-49E6-B574-16B426CE6081}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ThreadPool", "ThreadPool\ThreadPool.vcxproj", "{83EA81C8-E29D-407F-B8B3-8647F46E9115}"
 EndProject

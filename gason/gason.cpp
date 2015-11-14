@@ -16,6 +16,23 @@ const char *jsonStrError(int err) {
     }
 }
 
+JsonAllocator::JsonAllocator(void) {
+}
+
+JsonAllocator::~JsonAllocator() {
+	deallocate();
+}
+
+JsonAllocator::JsonAllocator(JsonAllocator &&x) : head(x.head) {
+	x.head = nullptr;
+}
+
+JsonAllocator& JsonAllocator::operator=(JsonAllocator &&x) {
+	head = x.head;
+	x.head = nullptr;
+	return *this;
+}
+
 void *JsonAllocator::allocate(size_t size) {
     size = (size + 7) & ~7;
 
