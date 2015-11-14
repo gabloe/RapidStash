@@ -21,6 +21,9 @@
   <ItemGroup>
     <ClInclude Include="RapidStashCommon.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="MainStash.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D1A40FCD-B4DA-43C3-BF60-1C1D900BFDBE}</ProjectGuid>
     <RootNamespace>RapidStash</RootNamespace>
