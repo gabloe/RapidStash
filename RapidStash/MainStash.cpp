@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
 	}
 	JsonIterator beg = begin(value);
 	while (beg != end(value)) {
-		std::cout << beg->key << ":" << beg->value.toString() << std::endl;
+		std::cout << beg->key << ":" << beg->value.toNumber() << std::endl;
 		++beg;
 	}
 	return 0;
