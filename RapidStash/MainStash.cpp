@@ -48,6 +48,7 @@ void fileSystemPerformance(STORAGE::Filesystem* fs, std::string filename, std::s
 		File file = fs->select(filename);
 		STORAGE::IO::Reader reader = fs->getReader(file);
 		std::string msg = reader.readString();
+
 		memcpy(herp, msg.c_str(), msg.length() + 1);
 		JsonValue value;
 
@@ -60,7 +61,7 @@ void fileSystemPerformance(STORAGE::Filesystem* fs, std::string filename, std::s
 	delete herp;
 	auto end = std::chrono::high_resolution_clock::now();
 
-	std::cout << iterations / (0.000001 + std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()) << " iterations per millisecond" << std::endl;
+	std::cout << iterations / (0.0000000001 + std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()) << " iterations per millisecond" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -156,8 +157,6 @@ int main(int argc, char* argv[]) {
 		std::string ref = (tests[i]);
 		fileSystemPerformance(&fs, fName, ref);
 	}
-
-
 
 	fs.shutdown();
 	std::cin.get();
