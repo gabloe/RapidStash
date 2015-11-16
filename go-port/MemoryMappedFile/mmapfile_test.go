@@ -2,6 +2,7 @@ package mmapfile
 
 import (
 	"bytes"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,11 +12,16 @@ const (
 	LargeFile = 1024 * 1024
 )
 
-var testData = []byte("0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789")
+var testData = []byte("asdfgasdfgasdfgasdfgasdfgasdfg")
 var testPath = filepath.Join(os.TempDir(), "testdata")
 
 type wrapper struct {
 	derp *testing.T
+}
+
+func init() {
+	os.Remove(testPath)
+	log.SetFlags(log.Ltime | log.LstdFlags | log.Lshortfile)
 }
 
 func TestCreate(t *testing.T) {
@@ -89,11 +95,10 @@ func TestTearDown(t *testing.T) {
 	os.Remove(testPath)
 	info, err := os.Stat(testPath)
 	if err == nil {
-		t.Error("File still exists")
+		t.Error("File still exists: ", testPath)
 	}
 
 	if info != nil {
 		t.Error("File still exists")
 	}
-
 }

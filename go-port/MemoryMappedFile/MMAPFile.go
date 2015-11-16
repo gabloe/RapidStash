@@ -39,13 +39,22 @@ type MMAPFileImpl struct {
 	newFile  bool
 	file     *os.File
 	lock     *sync.Mutex
+	name     string
 }
 
 /* Required for interface */
 
 func (this *MMAPFileImpl) Close() {
-	this.memmap.Unmap()
-	this.file.Close()
+	this.memmap.Flush()
+	err := this.memmap.Unmap()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = this.file.Close()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
 
 func (this *MMAPFileImpl) Write(data []byte, pos int) {
@@ -100,7 +109,7 @@ func (this *MMAPFileImpl) IsNew() bool {
 }
 
 func (this *MMAPFileImpl) Name() string {
-	return this.file.Name()
+	return this.name
 }
 
 /* Required to work */
@@ -115,9 +124,17 @@ func (this *MMAPFileImpl) grow(newSize int) {
 
 	// Grow the file
 	this.file.Truncate(int64(this.mapSize))
+	this.file.Close()
+	this.file = nil
+
 	var err error
 
 	// Resize the map
+	this.file, err = os.Open(this.Name())
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	this.memmap, err = mmap.Map(this.file, mmap.RDONLY, 0)
 
 	if err != nil {
@@ -179,6 +196,11 @@ func NewFile(fName string) MMAPFile {
 		log.Fatal(err)
 	}
 
+	if result.memmap == nil {
+		log.Fatal("Memory Mapped is nil!")
+	}
+
+	result.name = fName
 	result.lock = &sync.Mutex{}
 
 	return result
