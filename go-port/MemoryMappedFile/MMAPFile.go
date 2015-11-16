@@ -19,7 +19,7 @@ const (
 )
 
 type MMAPFile interface {
-	Close()
+	Close() error
 	Write(data []byte, pos int)
 	Read(pos, len, offset int) ([]byte, error)
 	IsNew() bool
@@ -32,29 +32,30 @@ type header struct {
 }
 
 type MMAPFileImpl struct {
-	memmap   mmap.MMap // This is just []byte
-	numPages int
-	mapSize  int
-	fHandle  interface{}
-	newFile  bool
-	file     *os.File
-	lock     *sync.Mutex
-	name     string
+	memmap  mmap.MMap // This is just []byte
+	mapSize int
+	newFile bool
+	file    *os.File
+	lock    *sync.Mutex
+	name    string
 }
 
 /* Required for interface */
 
-func (this *MMAPFileImpl) Close() {
+func (this *MMAPFileImpl) Close() error {
 	this.memmap.Flush()
 	err := this.memmap.Unmap()
+
 	if err != nil {
-		log.Fatal(err.Error())
+		return err
 	}
 
 	err = this.file.Close()
 	if err != nil {
-		log.Fatal(err.Error())
+		return err
 	}
+
+	return nil
 }
 
 func (this *MMAPFileImpl) Write(data []byte, pos int) {
@@ -115,6 +116,7 @@ func (this *MMAPFileImpl) Name() string {
 /* Required to work */
 
 func (this *MMAPFileImpl) grow(newSize int) {
+	// Get the new size
 	this.mapSize = newSize
 
 	// Flush and unmap
@@ -124,21 +126,13 @@ func (this *MMAPFileImpl) grow(newSize int) {
 
 	// Grow the file
 	this.file.Truncate(int64(this.mapSize))
-	this.file.Close()
-	this.file = nil
 
 	var err error
 
-	// Resize the map
-	this.file, err = os.Open(this.Name())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	this.memmap, err = mmap.Map(this.file, mmap.RDONLY, 0)
+	this.memmap, err = mmap.Map(this.file, mmap.RDWR, 0)
 
 	if err != nil {
-		log.Fatal("Could not resize file, handle gracefully later")
+		log.Fatal("Could not resize file, handle gracefully later: ", err.Error())
 	}
 
 	if this.memmap == nil {
@@ -170,38 +164,47 @@ func (this *MMAPFileImpl) align(offset int) {
 
 /* Constructors */
 
-func NewFile(fName string) MMAPFile {
+func NewFile(fName string) (MMAPFile, error) {
 
 	result := new(MMAPFileImpl)
+	result.memmap = nil
+	result.file = nil
+	result.name = ""
+	result.mapSize = 0
 
-	var err error
+	// Create/Open file
+	file, err := os.OpenFile(fName, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return nil, errors.New("Could not open file for reading")
+	}
 
-	result.file, err = os.OpenFile(fName, os.O_CREATE|os.O_RDWR, 0644)
-
+	// Check to see if new
 	info, _ := os.Stat(fName)
 	result.mapSize = int(info.Size())
 
-	if result.mapSize == 0 {
+	if info.Size() == 0 {
+		result.newFile = true
 		result.mapSize = INITIAL_SIZE
-		result.file.Truncate(int64(result.mapSize))
+		file.Truncate(int64(result.mapSize))
 		result.writeHeader()
 	} else {
-		info, _ := os.Stat(fName)
+		result.newFile = false
 		result.mapSize = int(info.Size())
 	}
 
-	result.memmap, err = mmap.Map(result.file, mmap.RDWR, 0)
+	// Map file to memory
+	mapped, err := mmap.Map(file, mmap.RDWR, 0)
 
+	// Validate
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	if result.memmap == nil {
-		log.Fatal("Memory Mapped is nil!")
-	}
-
+	// Setup struct
+	result.memmap = mapped
+	result.file = file
 	result.name = fName
 	result.lock = &sync.Mutex{}
 
-	return result
+	return result, nil
 }
