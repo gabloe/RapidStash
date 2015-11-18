@@ -6,6 +6,7 @@
 *.user
 *.sln.docstates
 settings.json
+*.exe
 
 # Build results
 [Dd]ebug/

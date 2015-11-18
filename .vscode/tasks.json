@@ -11,15 +11,17 @@
 {
 	"version": "0.1.0",
 
-	// The command is tsc. Assumes that tsc has been installed using npm install -g typescript
 	"command": "go",
 	
 	"tasks": [
 		{
 			"taskName": "build",
+			"showOutput": "always",
 			"isBuildCommand": true,
 			"args": [
-				"./go-port/MemoryMappedFile"
+				"-o",
+				"./go-port/go-port.exe",
+				"./go-port"
 			]
 		},
 		{
@@ -28,6 +30,12 @@
 			"args" : [
 				"-v",
 				"./go-port/MemoryMappedFile/"
+			]
+		},
+		{
+			"taskName": "clean",
+			"args": [
+				"./go-port"
 			]
 		}
 	]
