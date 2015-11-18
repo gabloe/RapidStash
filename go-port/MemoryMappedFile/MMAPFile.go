@@ -1,26 +1,31 @@
-package mmapfile
+package filesystem
 
 import (
+	"assert"
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"github.com/edsrzf/mmap-go"
+	"jeff/math"
 	"log"
 	"os"
 	"sync"
 	"unsafe"
 )
 
-var SANITY = []byte{0x0, 0x0, 0xd, 0x1, 0xe, 0x5, 0x0, 0xf, 0xd, 0x0, 0x0, 0xd, 0xa, 0xd, 0x5}
+var _Sanity = []byte{0x0, 0x0, 0xd, 0x1, 0xe, 0x5, 0x0, 0xf, 0xd, 0x0, 0x0, 0xd, 0xa, 0xd, 0x5}
 
 const (
-	VERSION      = 1
-	MaxFileSize  = 1000000000
-	HEADER_SIZE  = int(unsafe.Sizeof(VERSION)+unsafe.Sizeof(1)) + 16
-	INITIAL_SIZE = 4096 + HEADER_SIZE
+	_Version      byte = byte(1)
+	_MaxFileSize       = 1000000000
+	_HeaderSize       = int(unsafe.Sizeof(_Version)+unsafe.Sizeof(1)) + 16
+	_InitialSize      = 4096 + _HeaderSize
 )
 
-type MMAPFile interface {
+// File is an interface to represent basic operations of a file?
+type File interface {
 	Close() error
-	Write(data []byte, pos int)
+	Write(data []byte, pos int) (int, error)
 	Read(pos, len, offset int) ([]byte, error)
 	IsNew() bool
 	Name() string
@@ -29,10 +34,13 @@ type MMAPFile interface {
 /* Implementation */
 
 type header struct {
+	sanity []byte
+	ver    byte
+	mSize  int64
 }
 
-type MMAPFileImpl struct {
-	memmap  mmap.MMap // This is just []byte
+type mmapFileImpl struct {
+	memmap  mmap.MMap // mFile is just []byte
 	mapSize int
 	newFile bool
 	file    *os.File
@@ -42,15 +50,18 @@ type MMAPFileImpl struct {
 
 /* Required for interface */
 
-func (this *MMAPFileImpl) Close() error {
-	this.memmap.Flush()
-	err := this.memmap.Unmap()
+// Close cleans up all resources, flushes, and closes the 
+// memory mapped file
+func (mFile *mmapFileImpl) Close() error {
+	mFile.writeHeader()
+	mFile.memmap.Flush()
+	err := mFile.memmap.Unmap()
 
 	if err != nil {
 		return err
 	}
 
-	err = this.file.Close()
+	err = mFile.file.Close()
 	if err != nil {
 		return err
 	}
@@ -58,36 +69,36 @@ func (this *MMAPFileImpl) Close() error {
 	return nil
 }
 
-func (this *MMAPFileImpl) Write(data []byte, pos int) {
-	start := pos + HEADER_SIZE
+func (mFile *mmapFileImpl) Write(data []byte, pos int) (int, error) {
+	start := pos + _HeaderSize
 	end := start + len(data)
 
-	this.lock.Lock()
-	if end > this.mapSize {
-		this.grow(end + HEADER_SIZE)
+	mFile.lock.Lock()
+	if end > mFile.mapSize {
+		mFile.grow(end + _HeaderSize)
 	}
 
-	to := this.memmap[start:]
+	to := mFile.memmap[start:]
 	if len(to) < len(data) {
 		log.Fatal("Not enough space, didn't we grow?")
 	}
 
-	copy(to, data)
-	this.lock.Unlock()
+	length := copy(to, data)
+	mFile.lock.Unlock()
+	mFile.memmap.Flush()
 
-	this.memmap.Flush()
-
+	return length, nil
 }
 
-func (this *MMAPFileImpl) Read(pos, length, offset int) ([]byte, error) {
-	start := HEADER_SIZE + pos + offset
+func (mFile *mmapFileImpl) Read(pos, length, offset int) ([]byte, error) {
+	start := _HeaderSize + pos + offset
 	end := start + length
 
-	if end > this.mapSize {
+	if end > mFile.mapSize {
 		return nil, errors.New("Tried to read beyond end of file")
 	}
 
-	if length > MaxFileSize {
+	if length > _MaxFileSize {
 		log.Fatal("File too large")
 	}
 
@@ -96,7 +107,7 @@ func (this *MMAPFileImpl) Read(pos, length, offset int) ([]byte, error) {
 		log.Fatal("Could not allocate memory for read")
 	}
 
-	check := copy(result, this.memmap[start:])
+	check := copy(result, mFile.memmap[start:])
 
 	if check != length {
 		log.Fatal("Could not read entire length")
@@ -105,106 +116,138 @@ func (this *MMAPFileImpl) Read(pos, length, offset int) ([]byte, error) {
 	return result, nil
 }
 
-func (this *MMAPFileImpl) IsNew() bool {
-	return this.newFile
+// IsNew returns true if this file was new when created, otherwise
+// returns false
+func (mFile *mmapFileImpl) IsNew() bool {
+	return mFile.newFile
 }
 
-func (this *MMAPFileImpl) Name() string {
-	return this.name
+// Name returns the filename
+func (mFile *mmapFileImpl) Name() string {
+	return mFile.name
 }
 
 /* Required to work */
 
-func (this *MMAPFileImpl) grow(newSize int) {
+func (mFile *mmapFileImpl) grow(newSize int) {
 	// Get the new size
-	this.mapSize = newSize
+	mFile.mapSize = newSize
 
 	// Flush and unmap
-	this.memmap.Flush()
-	this.memmap.Unmap()
-	this.memmap = nil
+	mFile.memmap.Flush()
+	mFile.memmap.Unmap()
+	mFile.memmap = nil
 
 	// Grow the file
-	this.file.Truncate(int64(this.mapSize))
+	mFile.file.Truncate(int64(mFile.mapSize))
 
 	var err error
 
-	this.memmap, err = mmap.Map(this.file, mmap.RDWR, 0)
+	mFile.memmap, err = mmap.Map(mFile.file, mmap.RDWR, 0)
 
 	if err != nil {
 		log.Fatal("Could not resize file, handle gracefully later: ", err.Error())
 	}
 
-	if this.memmap == nil {
+	if mFile.memmap == nil {
 		log.Fatal("Could not resize file, handle gracefully later(2)")
 	}
 
-	if len(this.memmap) != this.mapSize {
+	if len(mFile.memmap) != mFile.mapSize {
 		log.Fatal("Backing mapped array not same size")
 	}
 
 }
 
-func (this *MMAPFileImpl) writeHeader() {
-	this.memmap.Flush()
+func (mFile *mmapFileImpl) writeHeader() {
+
+	var buff bytes.Buffer
+	err := binary.Write(&buff, binary.BigEndian,_Sanity)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = binary.Write(&buff, binary.BigEndian, _Version)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = binary.Write(&buff, binary.BigEndian, int64(mFile.mapSize))
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	copy(mFile.memmap, buff.Bytes())
+	mFile.memmap.Flush()
 }
 
-func (this *MMAPFileImpl) readHeader() header {
+func (mFile *mmapFileImpl) readHeader() header {
 	var result header
+	buff := bytes.NewBuffer(mFile.memmap[:_HeaderSize])
+	result.sanity = make([]byte, 15)
+
+	binary.Read(buff, binary.BigEndian, &result.sanity)
+	binary.Read(buff, binary.BigEndian, &result.ver)
+	binary.Read(buff, binary.BigEndian, &result.mSize)
+
 	return result
 }
 
-func (this *MMAPFileImpl) sanityCheck(h header) bool {
+func (mFile *mmapFileImpl) sanityCheck(h header) bool {
 	return true
 }
 
-func (this *MMAPFileImpl) align(offset int) {
-
+func (mFile *mmapFileImpl) align(offset int) int {
+	const alignment = 16
+	rem := offset % alignment
+	return offset + alignment - rem
 }
 
 /* Constructors */
 
-func NewFile(fName string) (MMAPFile, error) {
+// NewFile creates a new memory mapped file
+func NewFile(fName string) (File, error) {
+	var err error
 
-	result := new(MMAPFileImpl)
-	result.memmap = nil
-	result.file = nil
-	result.name = ""
-	result.mapSize = 0
+	result := new(mmapFileImpl)
+	result.name = fName
 
 	// Create/Open file
-	file, err := os.OpenFile(fName, os.O_CREATE|os.O_RDWR, 0644)
+	result.file, err = os.OpenFile(fName, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, errors.New("Could not open file for reading")
 	}
 
 	// Check to see if new
 	info, _ := os.Stat(fName)
-	result.mapSize = int(info.Size())
+	result.mapSize = math.MaxInt(_InitialSize, int(info.Size()))
 
 	if info.Size() == 0 {
 		result.newFile = true
-		result.mapSize = INITIAL_SIZE
-		file.Truncate(int64(result.mapSize))
-		result.writeHeader()
+		result.file.Truncate(int64(result.mapSize))
 	} else {
 		result.newFile = false
-		result.mapSize = int(info.Size())
 	}
 
 	// Map file to memory
-	mapped, err := mmap.Map(file, mmap.RDWR, 0)
+	result.memmap, err = mmap.Map(result.file, mmap.RDWR, 0)
 
 	// Validate
 	if err != nil {
 		return nil, err
 	}
 
-	// Setup struct
-	result.memmap = mapped
-	result.file = file
-	result.name = fName
 	result.lock = &sync.Mutex{}
 
+	if !result.newFile {
+
+		head := result.readHeader()
+
+		assert.Assert(bytes.Equal(head.sanity, _Sanity), "Sanity check failed '"+string(head.sanity)+"'")
+		assert.Assert(head.ver == _Version, "Versions do not match: ", head.ver, " vs. ", _Version)
+		assert.Assert(int(head.mSize) == result.mapSize, fName+": Sizes do not match: ", head.mSize, result.mapSize)
+
+	} else {
+		result.writeHeader()
+	}
 	return result, nil
 }

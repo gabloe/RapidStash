@@ -1,4 +1,4 @@
-package mmapfile
+package filesystem
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	LargeFile = 1024 * 1024
+	_LargeFile = 1024 * 1024
 )
 
 var testData = []byte("asdfgasdfgasdfgasdfgasdfgasdfg")
@@ -39,7 +39,7 @@ func TestCreate(t *testing.T) {
 		return
 	}
 
-	if info.Size() != int64(INITIAL_SIZE) {
+	if info.Size() != int64(_InitialSize) {
 		t.Error("Incorrect initial size")
 		return
 	}
@@ -93,9 +93,9 @@ func TestRead(t *testing.T) {
 	file.Close()
 }
 
-func TestWriteLargeFile(t *testing.T) {
-	data := make([]byte, LargeFile)
-	for i := 0; i < LargeFile; i++ {
+func TestWrite_LargeFile(t *testing.T) {
+	data := make([]byte, _LargeFile)
+	for i := 0; i < _LargeFile; i++ {
 		data[i] = byte(i % 256)
 	}
 
@@ -110,9 +110,9 @@ func TestWriteLargeFile(t *testing.T) {
 	file.Close()
 }
 
-func TestReadLargeFile(t *testing.T) {
-	data := make([]byte, LargeFile)
-	for i := 0; i < LargeFile; i++ {
+func TestRead_LargeFile(t *testing.T) {
+	data := make([]byte, _LargeFile)
+	for i := 0; i < _LargeFile; i++ {
 		data[i] = byte(i % 256)
 	}
 
