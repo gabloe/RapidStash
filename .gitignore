@@ -5,6 +5,7 @@
 *.suo
 *.user
 *.sln.docstates
+settings.json
 
 # Build results
 [Dd]ebug/
