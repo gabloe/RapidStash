@@ -29,7 +29,7 @@
 			"isTestCommand": true,
 			"args" : [
 				"-v",
-				"./go-port/MemoryMappedFile/"
+				"./go-port/filesystem/mmapfile"
 			]
 		},
 		{
